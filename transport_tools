@@ -1,0 +1,44 @@
+-- 服务引用
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+
+-- 获取本地玩家和角色
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+
+-- 1. 创建“点击传送”工具
+local clickTeleportTool = Instance.new("Tool")
+clickTeleportTool.Name = "点击传送" -- 工具名称
+clickTeleportTool.RequiresHandle = false -- 无需物理手柄（简化版）
+clickTeleportTool.CanBeDropped = false -- 禁止丢弃（可选，可改为true）
+clickTeleportTool.Parent = player.Backpack -- 工具放入背包
+
+-- 2. 工具激活逻辑（玩家点击时触发）
+local function onToolActivated()
+	-- 检查角色是否存在且存活
+	if not character or humanoid.Health <= 0 then
+		return
+	end
+
+	-- 获取玩家鼠标位置
+	local mouse = player:GetMouse()
+	-- 确保鼠标点击的是地面（Workspace中的Part）
+	if mouse.Target and mouse.Target.Parent == Workspace then
+		-- 计算传送位置（在点击点上方1.5 studs，避免卡进地面）
+		local teleportPosition = mouse.Hit.Position + Vector3.new(0, 1.5, 0)
+		-- 执行传送
+		character:MoveTo(teleportPosition)
+	end
+end
+
+-- 绑定工具激活事件
+clickTeleportTool.Activated:Connect(onToolActivated)
+
+-- 角色重生时重新绑定（防止角色死亡后工具失效）
+player.CharacterAdded:Connect(function(newCharacter)
+	character = newCharacter
+	humanoid = character:WaitForChild("Humanoid")
+	-- 重生后将工具重新放入背包
+	clickTeleportTool.Parent = player.Backpack
+end)
