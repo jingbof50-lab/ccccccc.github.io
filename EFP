@@ -3,19 +3,25 @@ if UIS.TouchEnabled and not UIS.MouseEnabled and not UIS.KeyboardEnabled then
     getgenv().bypass_adonis = true
     loadstring(game:HttpGet('https://raw.githubusercontent.com/FakeAngles/RobloxSolutions/refs/heads/main/RTS_TEST_MOBILE.lua'))() return
 end
+
 if not game:IsLoaded() then 
     game.Loaded:Wait()
 end
+
 if not syn or not protectgui then
     getgenv().protectgui = function() end
 end
+
 if bypass_adonis then
     task.spawn(function()
         local g = getinfo or debug.getinfo
         local d = false
         local h = {}
+
         local x, y
+
         setthreadidentity(2)
+
         for i, v in getgc(true) do
             if typeof(v) == "table" then
                 local a = rawget(v, "Detected")
@@ -26,7 +32,7 @@ if bypass_adonis then
                     local o; o = hookfunction(x, function(c, f, n)
                         if c ~= "_" then
                             if d then
-                                warn(`Adonis 反作弊标记\n方式: {c}\n信息: {f}`)
+                                warn(`Adonis AntiCheat flagged\nMethod: {c}\nInfo: {f}`)
                             end
                         end
                         
@@ -34,35 +40,42 @@ if bypass_adonis then
                     end)
                     table.insert(h, x)
                 end
+
                 if rawget(v, "Variables") and rawget(v, "Process") and typeof(b) == "function" and not y then
                     y = b
                     local o; o = hookfunction(y, function(f)
                         if d then
-                            warn(`Adonis 反作弊尝试拦截 (备用): {f}`)
+                            warn(`Adonis AntiCheat tried to kill (fallback): {f}`)
                         end
                     end)
                     table.insert(h, y)
                 end
             end
         end
+
         local o; o = hookfunction(getrenv().debug.info, newcclosure(function(...)
             local a, f = ...
+
             if x and a == x then
                 if d then
-                    warn(`zins | adonis 已绕过`)
+                    warn(`zins | adonis bypassed`)
                 end
+
                 return coroutine.yield(coroutine.running())
             end
             
             return o(...)
         end))
+
         setthreadidentity(7)
     end)
 end
+
 local function getPositionOnScreen(Vector)
     local Vec3, OnScreen = WorldToScreen(Camera, Vector)
     return Vector2.new(Vec3.X, Vec3.Y), OnScreen
 end
+
 local function ValidateArguments(Args, RayMethod)
     local Matches = 0
     if #Args < RayMethod.ArgCountRequired then
@@ -75,12 +88,15 @@ local function ValidateArguments(Args, RayMethod)
     end
     return Matches >= RayMethod.ArgCountRequired
 end
+
 local function getDirection(Origin, Position)
     return (Position - Origin).Unit * 1000
 end
+
 local function getMousePosition()
     return GetMouseLocation(UserInputService)
 end
+
 local function IsPlayerVisible(Player)
     local PlayerCharacter = Player.Character
     local LocalPlayerCharacter = LocalPlayer.Character
@@ -96,11 +112,13 @@ local function IsPlayerVisible(Player)
     
     return ((ObscuringObjects == 0 and true) or (ObscuringObjects > 0 and false))
 end
+
 local function getClosestPlayer()
     if not Options.TargetPart.Value then return end
     local Closest
     local DistanceToMouse
     local ignoredPlayers = Options.PlayerDropdown.Value 
+
     for _, Player in next, GetPlayers(Players) do
         if Player == LocalPlayer then continue end
         if ignoredPlayers and ignoredPlayers[Player.Name] then continue end
@@ -120,11 +138,14 @@ local function getClosestPlayer()
     end
     return Closest
 end
+
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local Mouse = LocalPlayer:GetMouse()
+
 local isLockedOn = false
 local targetPlayer = nil
 local lockEnabled = false
@@ -132,14 +153,18 @@ local smoothingFactor = 0.1
 local predictionFactor = 0.0
 local bodyPartSelected = "Head"
 local aimLockEnabled = false 
+
+
 local function getBodyPart(character, part)
     return character:FindFirstChild(part) and part or "Head"
 end
+
 local function getNearestPlayerToMouse()
     if not aimLockEnabled then return nil end 
     local nearestPlayer = nil
     local shortestDistance = math.huge
-    local mousePosition = Camera:ViewportPointToRay(Mouse.X, Mouse.Y(MOrigin
+    local mousePosition = Camera:ViewportPointToRay(Mouse.X, Mouse.Y).Origin
+
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(bodyPartSelected) then
             local part = player.Character[bodyPartSelected]
@@ -155,8 +180,10 @@ local function getNearestPlayerToMouse()
     end
     return nearestPlayer
 end
+
 local function toggleLockOnPlayer()
     if not lockEnabled or not aimLockEnabled then return end
+
     if isLockedOn then
         isLockedOn = false
         targetPlayer = nil
@@ -170,13 +197,17 @@ local function toggleLockOnPlayer()
         end
     end
 end
+
+
 RunService.RenderStepped:Connect(function()
     if aimLockEnabled and lockEnabled and isLockedOn and targetPlayer and targetPlayer.Character then
         local partName = getBodyPart(targetPlayer.Character, bodyPartSelected)
         local part = targetPlayer.Character:FindFirstChild(partName)
+
         if part and targetPlayer.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
             local predictedPosition = part.Position + (part.AssemblyLinearVelocity * predictionFactor)
             local currentCameraPosition = Camera.CFrame.Position
+
             Camera.CFrame = CFrame.new(currentCameraPosition, predictedPosition) * CFrame.new(0, 0, smoothingFactor)
         else
             isLockedOn = false
@@ -184,9 +215,12 @@ RunService.RenderStepped:Connect(function()
         end
     end
 end)
+
+
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/FakeAngles/PasteWare/refs/heads/main/linoralib.lua"))()
 local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/FakeAngles/PasteWare/refs/heads/main/manage2.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/FakeAngles/PasteWare/refs/heads/main/manager.lua"))()
+
 local Window = Library:CreateWindow({
     Title = 'rts.solutions',
     Center = true,
@@ -194,18 +228,21 @@ local Window = Library:CreateWindow({
     TabPadding = 8,
     MenuFadeTime = 0.2
 })
+
 local Tabs = {
-    Main = Window:AddTab('主要功能'),
-    ['Exploits'] = Window:AddTab('漏洞利用'),
-    ['Visuals'] = Window:AddTab('视觉效果'),
-    ['UI Settings'] = Window:AddTab('UI 设置'),
+    Main = Window:AddTab('Rage'),
+    ['Exploits'] = Window:AddTab('Exploits'),
+    ['Visuals'] = Window:AddTab('Visuals'),
+    ['UI Settings'] = Window:AddTab('UI Settings'),
 }
-local aimbox = Tabs.Main:AddLeftGroupbox("瞄准锁")
-local velbox = Tabs.Main:AddRightGroupbox("不同步")
+
+local aimbox = Tabs.Main:AddLeftGroupbox("aimlock")
+local velbox = Tabs.Main:AddRightGroupbox("desync")
+
 aimbox:AddToggle("aimLock_Enabled", {
-    Text = "启用/禁用瞄准锁",
+    Text = "enable/disable AimLock",
     Default = false,
-    Tooltip = "开启或关闭瞄准锁功能。",
+    Tooltip = "Toggle the AimLock feature on or off.",
     Callback = function(value)
         aimLockEnabled = value
         if not aimLockEnabled then
@@ -215,10 +252,11 @@ aimbox:AddToggle("aimLock_Enabled", {
         end
     end
 })
+
 aimbox:AddToggle("aim_Enabled", {
-    Text = "瞄准锁快捷键",
+    Text = "aimlock keybind",
     Default = false,
-    Tooltip = "开启或关闭瞄准锁。",
+    Tooltip = "Toggle AimLock on or off.",
     Callback = function(value)
         lockEnabled = value
         if not lockEnabled then
@@ -230,84 +268,101 @@ aimbox:AddToggle("aim_Enabled", {
     Default = "Q", 
     SyncToggleState = true,
     Mode = "Toggle","Hold",
-    Text = "瞄准锁按键",
-    Tooltip = "切换瞄准锁的按键",
+    Text = "AimLock Key",
+    Tooltip = "Key to toggle AimLock",
     Callback = function()
         toggleLockOnPlayer()
     end,
 })
+
 aimbox:AddSlider("Smoothing", {
-    Text = "相机平滑度",
+    Text = "Camera Smoothing",
     Default = 0.1,
     Min = 0,
     Max = 1,
     Rounding = 2,
-    Tooltip = "调整相机平滑系数。",
+    Tooltip = "Adjust camera smoothing factor.",
     Callback = function(value)
         smoothingFactor = value
     end,
 })
+
+
 aimbox:AddSlider("Prediction", {
-    Text = "预测系数",
+    Text = "Prediction Factor",
     Default = 0.0,
     Min = 0,
     Max = 2,
     Rounding = 2,
-    Tooltip = "调整目标移动预测值。",
+    Tooltip = "Adjust prediction for target movement.",
     Callback = function(value)
         predictionFactor = value
     end,
 })
+
 aimbox:AddDropdown("BodyParts", {
-    Values = {"头部", "上躯干", "右大臂", "左大腿", "右大腿", "左大臂"},
-    Default = "头部",
+    Values = {"Head", "UpperTorso", "RightUpperArm", "LeftUpperLeg", "RightUpperLeg", "LeftUpperArm"},
+    Default = "Head",
     Multi = false,
-    Text = "目标身体部位",
-    Tooltip = "选择要锁定的身体部位。",
+    Text = "Target Body Part",
+    Tooltip = "Select which body part to lock onto.",
     Callback = function(value)
         bodyPartSelected = value
     end,
 })
+
+
 local reverseResolveIntensity = 5
 getgenv().Desync = false
 getgenv().DesyncEnabled = false  
+
+
 game:GetService("RunService").Heartbeat:Connect(function()
     if getgenv().DesyncEnabled then  
         if getgenv().Desync then
             local player = game.Players.LocalPlayer
             local character = player.Character
             if not character then return end 
+
             local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
             if not humanoidRootPart then return end
+
             local originalVelocity = humanoidRootPart.Velocity
+
             local randomOffset = Vector3.new(
                 math.random(-1, 1) * reverseResolveIntensity * 1000,
                 math.random(-1, 1) * reverseResolveIntensity * 1000,
                 math.random(-1, 1) * reverseResolveIntensity * 1000
             )
+
             humanoidRootPart.Velocity = randomOffset
             humanoidRootPart.CFrame = humanoidRootPart.CFrame * CFrame.Angles(
                 0,
                 math.random(-1, 1) * reverseResolveIntensity * 0.001,
                 0
             )
+
             game:GetService("RunService").RenderStepped:Wait()
+
             humanoidRootPart.Velocity = originalVelocity
         end
     end
 end)
+
 velbox:AddToggle("desyncMasterEnabled", {
-    Text = "启用不同步",
+    Text = "Enable Desync",
     Default = false,
-    Tooltip = "开启或关闭整个不同步系统。",
+    Tooltip = "Enable or disable the entire desync system.",
     Callback = function(value)
         getgenv().DesyncEnabled = value  
     end
 })
+
+
 velbox:AddToggle("desyncEnabled", {
-    Text = "不同步快捷键",
+    Text = "Desync keybind",
     Default = false,
-    Tooltip = "开启或关闭反向解析不同步。",
+    Tooltip = "Enable or disable reverse resolve desync.",
     Callback = function(value)
         getgenv().Desync = value
     end
@@ -315,45 +370,58 @@ velbox:AddToggle("desyncEnabled", {
     Default = "V", 
     SyncToggleState = true,
     Mode = "Toggle",
-    Text = "不同步切换按键",
-    Tooltip = "切换启用/禁用速度不同步的按键。",
+    Text = "Desync Toggle Key",
+    Tooltip = "Toggle to enable/disable velocity desync.",
     Callback = function(value)
         getgenv().Desync = value
     end
 })
+
+
 velbox:AddSlider("ReverseResolveIntensity", {
-    Text = "反向解析强度",
+    Text = "velocity intensity",
     Default = 5,
     Min = 1,
     Max = 10,
     Rounding = 0,
-    Tooltip = "调整反向解析效果的强度。",
+    Tooltip = "Adjust the intensity of the reverse resolve effect.",
     Callback = function(value)
         reverseResolveIntensity = value
     end
 })
+
+
+
 local antiLockEnabled = false
 local resolverIntensity = 1.0
-local resolverMethod = "重新计算"
+local resolverMethod = "Recalculate"
+
+
 RunService.RenderStepped:Connect(function()
     if aimLockEnabled and isLockedOn and targetPlayer and targetPlayer.Character then
         local partName = getBodyPart(targetPlayer.Character, bodyPartSelected)
         local part = targetPlayer.Character:FindFirstChild(partName)
+
         if part and targetPlayer.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
             local predictedPosition = part.Position + (part.AssemblyLinearVelocity * predictionFactor)
+
             if antiLockEnabled then
-                if resolverMethod == "重新计算" then
+                if resolverMethod == "Recalculate" then
+
                     predictedPosition = predictedPosition + (part.AssemblyLinearVelocity * resolverIntensity)
-                elseif resolverMethod == "随机化" then
+                elseif resolverMethod == "Randomize" then
+
                     predictedPosition = predictedPosition + Vector3.new(
                         math.random() * resolverIntensity - (resolverIntensity / 2),
                         math.random() * resolverIntensity - (resolverIntensity / 2),
                         math.random() * resolverIntensity - (resolverIntensity / 2)
                     )
-                elseif resolverMethod == "反转" then
+                elseif resolverMethod == "Invert" then
+
                     predictedPosition = predictedPosition - (part.AssemblyLinearVelocity * resolverIntensity * 2)
                 end
             end
+
             local currentCameraPosition = Camera.CFrame.Position
             Camera.CFrame = CFrame.new(currentCameraPosition, predictedPosition) * CFrame.new(0, 0, smoothingFactor)
         else
@@ -362,60 +430,71 @@ RunService.RenderStepped:Connect(function()
         end
     end
 end)
+
 aimbox:AddToggle("antiLock_Enabled", {
-    Text = "启用反锁定解析器",
+    Text = "Enable Anti Lock Resolver",
     Default = false,
-    Tooltip = "开启或关闭反锁定解析器。",
+    Tooltip = "Toggle the Anti Lock Resolver on or off.",
     Callback = function(value)
         antiLockEnabled = value
     end,
 })
+
 aimbox:AddSlider("ResolverIntensity", {
-    Text = "解析器强度",
+    Text = "Resolver Intensity",
     Default = 1.0,
     Min = 0,
     Max = 5,
     Rounding = 2,
-    Tooltip = "调整反锁定解析器的强度。",
+    Tooltip = "Adjust the intensity of the Anti Lock Resolver.",
     Callback = function(value)
         resolverIntensity = value
     end,
 })
+
 aimbox:AddDropdown("ResolverMethods", {
-    Values = {"重新计算", "随机化", "反转"},
-    Default = "重新计算", 
+    Values = {"Recalculate", "Randomize", "Invert"},
+    Default = "Recalculate", 
     Multi = false,
-    Text = "解析器模式",
-    Tooltip = "选择反锁定解析器使用的模式。",
+    Text = "Resolver Method",
+    Tooltip = "Select the method used by the Anti Lock Resolver.",
     Callback = function(value)
         resolverMethod = value
     end,
 })
+
 Library:SetWatermarkVisibility(true)
 local FrameTimer = tick()
 local FrameCounter = 0;
 local FPS = 60;
+
 local WatermarkConnection = game:GetService('RunService').RenderStepped:Connect(function()
     FrameCounter += 1;
+
     if (tick() - FrameTimer) >= 1 then
         FPS = FrameCounter;
         FrameTimer = tick();
         FrameCounter = 0;
     end;
-    Library:SetWatermark(('rts solutions | %s 帧率 | %s 毫秒'):format(
+
+    Library:SetWatermark(('rts solutions | %s fps | %s ms'):format(
         math.floor(FPS),
         math.floor(game:GetService('Stats').Network.ServerStatsItem['Data Ping']:GetValue())
     ));
 end);
+
 Library.KeybindFrame.Visible = true;
+
 Library:OnUnload(function()
     WatermarkConnection:Disconnect()
-    print('已卸载!')
+
+    print('Unloaded!')
     Library.Unloaded = true
 end)
-local MenuGroup = Tabs['UI Settings']:AddLeftGroupbox('菜单')
-MenuGroup:AddButton('卸载', function() Library:Unload() end)
-MenuGroup:AddLabel('菜单快捷键'):AddKeyPicker('MenuKeybind', { Default = 'End', NoUI = true, Text = '菜单快捷键' })
+
+local MenuGroup = Tabs['UI Settings']:AddLeftGroupbox('Menu')
+MenuGroup:AddButton('Unload', function() Library:Unload() end)
+MenuGroup:AddLabel('Menu bind'):AddKeyPicker('MenuKeybind', { Default = 'End', NoUI = true, Text = 'Menu keybind' })
 Library.ToggleKeybind = Options.MenuKeybind
 ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
@@ -423,17 +502,21 @@ SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({ 'MenuKeybind' })
 SaveManager:BuildConfigSection(Tabs['UI Settings'])
 ThemeManager:ApplyToTab(Tabs['UI Settings'])
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
-local targetStrafe = Tabs.Main:AddLeftGroupbox("目标侧移")
+
+local targetStrafe = Tabs.Main:AddLeftGroupbox("Target Strafe")
+
 local strafeEnabled = false
 local teamCheck = false
 local strafeAllowed = true
 local strafeSpeed, strafeRadius = 50, 5
-local strafeMode, targetPlayer = "水平", nil
+local strafeMode, targetPlayer = "Horizontal", nil
 local originalCameraMode = nil
+
 local function getClosestPlayer()
     local closest, shortestDist = nil, math.huge
     for _, player in pairs(Players:GetPlayers()) do
@@ -448,6 +531,7 @@ local function getClosestPlayer()
     end
     return closest and closest.Character and closest.Character:FindFirstChild("HumanoidRootPart") and closest.Character or nil
 end
+
 local function startTargetStrafe()
     if not strafeAllowed then return end
     targetPlayer = getClosestPlayer()
@@ -459,25 +543,28 @@ local function startTargetStrafe()
         Camera.CameraSubject = targetPlayer:FindFirstChild("Humanoid")
     end
 end
+
 local function strafeAroundTarget()
     if not (strafeAllowed and strafeEnabled and targetPlayer and targetPlayer:FindFirstChild("HumanoidRootPart")) then return end
     local targetPos = targetPlayer.HumanoidRootPart.Position
     local angle = tick() * (strafeSpeed / 10)
-    local offset = strafeMode == "水平"
+    local offset = strafeMode == "Horizontal"
         and Vector3.new(math.cos(angle) * strafeRadius, 0, math.sin(angle) * strafeRadius)
         or Vector3.new(math.cos(angle) * strafeRadius, strafeRadius, math.sin(angle) * strafeRadius)
     LocalPlayer.Character:SetPrimaryPartCFrame(CFrame.new(targetPos + offset))
     LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(LocalPlayer.Character.HumanoidRootPart.Position, targetPos)
 end
+
 local function stopTargetStrafe()
     LocalPlayer.CameraMode = originalCameraMode or Enum.CameraMode.Classic
     Camera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
     strafeEnabled, targetPlayer = false, nil
 end
+
 targetStrafe:AddToggle("strafeControlToggle", {
-    Text = "启用/禁用",
+    Text = "Enable/Disable",
     Default = true,
-    Tooltip = "开启或关闭使用目标侧移功能的权限。",
+    Tooltip = "Enable or disable the ability to use Target Strafe.",
     Callback = function(value)
         strafeAllowed = value
         if not strafeAllowed and strafeEnabled then
@@ -485,10 +572,11 @@ targetStrafe:AddToggle("strafeControlToggle", {
         end
     end
 })
+
 targetStrafe:AddToggle("strafeToggle", {
-    Text = "启用目标侧移",
+    Text = "Enable Target Strafe",
     Default = false,
-    Tooltip = "开启或关闭目标侧移。",
+    Tooltip = "Enable or disable Target Strafe.",
     Callback = function(value)
         if strafeAllowed then
             strafeEnabled = value
@@ -499,8 +587,8 @@ targetStrafe:AddToggle("strafeToggle", {
     Default = "L",
     SyncToggleState = true,
     Mode = "Toggle",
-    Text = "目标侧移切换按键",
-    Tooltip = "切换目标侧移的按键",
+    Text = "Target Strafe Toggle Key",
+    Tooltip = "Key to toggle Target Strafe",
     Callback = function(value)
         if strafeAllowed then
             strafeEnabled = value
@@ -508,47 +596,56 @@ targetStrafe:AddToggle("strafeToggle", {
         end
     end
 })
+
 targetStrafe:AddToggle("teamCheckToggle", {
-    Text = "队伍检查",
+    Text = "Team Check",
     Default = false,
-    Tooltip = "仅对敌方队伍玩家进行侧移。",
+    Tooltip = "Only strafe players from the opposing team.",
     Callback = function(value)
         teamCheck = value
     end
 })
+
 targetStrafe:AddDropdown("strafeModeDropdown", {
     AllowNull = false,
-    Text = "目标侧移模式",
-    Default = "水平",
-    Values = {"水平", "向上"},
-    Tooltip = "选择侧移模式。",
+    Text = "Target Strafe Mode",
+    Default = "Horizontal",
+    Values = {"Horizontal", "UP"},
+    Tooltip = "Select the strafing mode.",
     Callback = function(value) strafeMode = value end
 })
+
 targetStrafe:AddSlider("strafeRadiusSlider", {
-    Text = "侧移半径",
+    Text = "Strafe Radius",
     Default = 5,
     Min = 1,
     Max = 20,
     Rounding = 1,
-    Tooltip = "设置围绕目标移动的半径。",
+    Tooltip = "Set the radius of movement around the target.",
     Callback = function(value) strafeRadius = value end
 })
+
 targetStrafe:AddSlider("strafeSpeedSlider", {
-    Text = "侧移速度",
+    Text = "Strafe Speed",
     Default = 50,
     Min = 10,
     Max = 200,
     Rounding = 1,
-    Tooltip = "设置围绕目标侧移的速度。",
+    Tooltip = "Set the speed of strafing around the target.",
     Callback = function(value) strafeSpeed = value end
 })
+
 RunService.RenderStepped:Connect(function()
     pcall(strafeAroundTarget)
 end)
+
+
 game:GetService("RunService").RenderStepped:Connect(function()
     if strafeEnabled and strafeAllowed then strafeAroundTarget() end
 end)
-local frabox = Tabs.Main:AddRightGroupbox("移动")
+
+local frabox = Tabs.Main:AddRightGroupbox("Movement")
+
 local localPlayer = game:GetService("Players").LocalPlayer
 local Cmultiplier = 1  
 local isSpeedActive = false
@@ -558,18 +655,20 @@ local isFunctionalityEnabled = true
 local flySpeed = 1
 local camera = workspace.CurrentCamera
 local humanoid = nil
+
 frabox:AddToggle("functionalityEnabled", {
-    Text = "启用/禁用移动功能",
+    Text = "Enable/Disable movement",
     Default = true,
-    Tooltip = "开启或关闭移动相关功能。",
+    Tooltip = "Enable or disable.",
     Callback = function(value)
         isFunctionalityEnabled = value
     end
 })
+
 frabox:AddToggle("speedEnabled", {
-    Text = "速度切换",
+    Text = "Speed Toggle",
     Default = false,
-    Tooltip = "让你移动更快。",
+    Tooltip = "It makes you go fast.",
     Callback = function(value)
         isSpeedActive = value
     end
@@ -577,27 +676,29 @@ frabox:AddToggle("speedEnabled", {
     Default = "C",  
     SyncToggleState = true,
     Mode = "Toggle",
-    Text = "速度切换按键",
-    Tooltip = "坐标框架快捷键。",
+    Text = "Speed Toggle Key",
+    Tooltip = "CFrame keybind.",
     Callback = function(value)
         isSpeedActive = value
     end
 })
+
 frabox:AddSlider("cframespeed", {
-    Text = "坐标框架倍率",
+    Text = "CFrame Multiplier",
     Default = 1,
     Min = 1,
     Max = 666,
     Rounding = 1,
-    Tooltip = "坐标框架速度。",
+    Tooltip = "The CFrame speed.",
     Callback = function(value)
         Cmultiplier = value
     end,
 })
+
 frabox:AddToggle("flyEnabled", {
-    Text = "坐标框架飞行切换",
+    Text = "CFly Toggle",
     Default = false,
-    Tooltip = "切换坐标框架飞行功能。",
+    Tooltip = "Toggle CFrame Fly functionality.",
     Callback = function(value)
         isFlyActive = value
     end
@@ -605,26 +706,29 @@ frabox:AddToggle("flyEnabled", {
     Default = "F",  
     SyncToggleState = true,
     Mode = "Toggle",
-    Text = "坐标框架飞行按键",
+    Text = "CFly Toggle Key",
+    Tooltip = "CFrame Fly keybind.",
     Callback = function(value)
         isFlyActive = value
     end
 })
+
 frabox:AddSlider("flySpeed", {
-    Text = "坐标框架飞行速度",
+    Text = "CFly Speed",
     Default = 1,
     Min = 1,
     Max = 666,
     Rounding = 1,
-    Tooltip = "坐标框架飞行速度。",
+    Tooltip = "The CFrame Fly speed.",
     Callback = function(value)
         flySpeed = value
     end,
 })
+
 frabox:AddToggle("noClipEnabled", {
-    Text = "穿墙切换",
+    Text = "NoClip Toggle",
     Default = false,
-    Tooltip = "开启或关闭穿墙功能。",
+    Tooltip = "Enable or disable NoClip.",
     Callback = function(value)
         isNoClipActive = value
     end
@@ -632,21 +736,25 @@ frabox:AddToggle("noClipEnabled", {
     Default = "N",
     SyncToggleState = true,
     Mode = "Toggle",
-    Text = "穿墙切换按键",
-    Tooltip = "切换穿墙功能的按键。",
+    Text = "NoClip Toggle Key",
+    Tooltip = "Keybind to toggle NoClip.",
     Callback = function(value)
         isNoClipActive = value
     end
 })
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LPlayer = Players.LocalPlayer
-local KillAllBox = Tabs['Exploits']:AddLeftGroupbox("全杀")
+
+local KillAllBox = Tabs['Exploits']:AddLeftGroupbox("KILL ALL")
+
 local enemyList = {}
 local SelectedEnemies = {}
 local LoopKill = false
-local KillMode = "选择"
-local KillType = "击杀"
+local KillMode = "Select"
+local KillType = "KILL"
+
 local function UpdateEnemyList()
     enemyList = {}
     for _, plr in ipairs(Players:GetPlayers()) do
@@ -656,86 +764,94 @@ local function UpdateEnemyList()
     end
     Options.EnemySelect:SetValues(enemyList)
 end
+
 local function KillPlayer(plr)
     if plr.Character and plr.Character:FindFirstChild("Humanoid") and plr.Character:FindFirstChild("Head") then
         ReplicatedStorage.RemoteEvents.DamageEvent:FireServer(plr.Character.Humanoid, 41, plr.Character.Head)
     end
 end
+
 local function ExplodePlayer(plr)
     if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
         local pos = plr.Character.HumanoidRootPart.Position
         ReplicatedStorage.LocalEvents.ExplodeEvent:Fire(pos, 99, 800, 700)
     end
 end
+
 KillAllBox:AddDropdown("EnemySelect", {
     Values = enemyList,
     Multi = true,
     Default = {},
-    Text = "选择敌人",
+    Text = "Select Enemies",
 }):OnChanged(function(values)
     SelectedEnemies = values
 end)
+
 KillAllBox:AddDropdown("KillMode", {
-    Values = {"选择", "全部"},
-    Default = "选择",
-    Text = "目标模式",
+    Values = {"Select", "ALL"},
+    Default = "Select",
+    Text = "Target Mode",
 }):OnChanged(function(val)
     KillMode = val
 end)
+
 KillAllBox:AddDropdown("KillType", {
-    Values = {"击杀", "爆炸"},
-    Default = "击杀",
-    Text = "击杀类型",
+    Values = {"KILL", "EXPLODE"},
+    Default = "KILL",
+    Text = "Kill Type",
 }):OnChanged(function(val)
     KillType = val
 end)
-KillAllBox:AddToggle("LoopKill", {Text = "循环击杀", Default = false}):OnChanged(function(val)
+
+KillAllBox:AddToggle("LoopKill", {Text = "LoopKill", Default = false}):OnChanged(function(val)
     LoopKill = val
 end)
-KillAllBox:AddButton("击杀", function()
-    if KillMode == "选择" and next(SelectedEnemies) then
+
+KillAllBox:AddButton("KILL", function()
+    if KillMode == "Select" and next(SelectedEnemies) then
         for name in pairs(SelectedEnemies) do
             local plr = Players:FindFirstChild(name)
             if plr then
-                if KillType == "击杀" then
+                if KillType == "KILL" then
                     KillPlayer(plr)
-                elseif KillType == "爆炸" then
+                elseif KillType == "EXPLODE" then
                     ExplodePlayer(plr)
                 end
             end
         end
-    elseif KillMode == "全部" then
+    elseif KillMode == "ALL" then
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LPlayer and plr.Team ~= LPlayer.Team then
-                if KillType == "击杀" then
+                if KillType == "KILL" then
                     KillPlayer(plr)
-                elseif KillType == "爆炸" then
+                elseif KillType == "EXPLODE" then
                     ExplodePlayer(plr)
                 end
             end
         end
     end
 end)
+
 task.spawn(function()
     while task.wait(0.3) do
         if LoopKill then
-            if KillMode == "全部" then
+            if KillMode == "ALL" then
                 for _, plr in ipairs(Players:GetPlayers()) do
                     if plr ~= LPlayer and plr.Team ~= LPlayer.Team then
-                        if KillType == "击杀" then
+                        if KillType == "KILL" then
                             KillPlayer(plr)
-                        elseif KillType == "爆炸" then
+                        elseif KillType == "EXPLODE" then
                             ExplodePlayer(plr)
                         end
                     end
                 end
-            elseif KillMode == "选择" and next(SelectedEnemies) then
+            elseif KillMode == "Select" and next(SelectedEnemies) then
                 for name in pairs(SelectedEnemies) do
                     local plr = Players:FindFirstChild(name)
                     if plr then
-                        if KillType == "击杀" then
+                        if KillType == "KILL" then
                             KillPlayer(plr)
-                        elseif KillType == "爆炸" then
+                        elseif KillType == "EXPLODE" then
                             ExplodePlayer(plr)
                         end
                     end
@@ -744,37 +860,45 @@ task.spawn(function()
         end
     end
 end)
+
 Players.PlayerAdded:Connect(UpdateEnemyList)
 Players.PlayerRemoving:Connect(UpdateEnemyList)
 UpdateEnemyList()
+
+
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
-local ExplodeBox = Tabs['Exploits']:AddRightGroupbox("点击爆炸")
+
+local ExplodeBox = Tabs['Exploits']:AddRightGroupbox("EXPLODE CLICK")
+
 local Enabled = false
-local ClickMode = "点击"
+local ClickMode = "CLICK"
 local ExplodeDelay = 0.3
 local ExplosionsCount = 1
 local ExplodeRadius = 30
 local ExplodePower = 80
 local ExplodePressure = 18
+
 ExplodeBox:AddToggle("ExplodeClickEnable", {
-    Text = "启用",
+    Text = "Enable",
     Default = false,
 }):OnChanged(function(val)
     Enabled = val
 end)
+
 ExplodeBox:AddDropdown("ExplodeClickMode", {
-    Values = {"点击", "循环"},
-    Default = "点击",
-    Text = "模式",
+    Values = {"CLICK", "LOOP"},
+    Default = "CLICK",
+    Text = "Mode",
 }):OnChanged(function(val)
     ClickMode = val
 end)
+
 ExplodeBox:AddSlider("ExplodeDelay", {
-    Text = "爆炸延迟",
+    Text = "Explosion Delay",
     Default = 0.3,
     Min = 0.05,
     Max = 1,
@@ -783,8 +907,9 @@ ExplodeBox:AddSlider("ExplodeDelay", {
 }):OnChanged(function(val)
     ExplodeDelay = val
 end)
+
 ExplodeBox:AddSlider("ExplosionsCountSlider", {
-    Text = "爆炸次数",
+    Text = "Explosions Count",
     Default = ExplosionsCount,
     Min = 1,
     Max = 50,
@@ -792,8 +917,9 @@ ExplodeBox:AddSlider("ExplosionsCountSlider", {
 }):OnChanged(function(val)
     ExplosionsCount = val
 end)
+
 ExplodeBox:AddSlider("ExplodeRadiusSlider", {
-    Text = "爆炸半径",
+    Text = "Radius",
     Default = ExplodeRadius,
     Min = 1,
     Max = 99,
@@ -801,8 +927,9 @@ ExplodeBox:AddSlider("ExplodeRadiusSlider", {
 }):OnChanged(function(val)
     ExplodeRadius = val
 end)
+
 ExplodeBox:AddSlider("ExplodePowerSlider", {
-    Text = "爆炸威力",
+    Text = "Power",
     Default = ExplodePower,
     Min = 1,
     Max = 1500,
@@ -810,8 +937,9 @@ ExplodeBox:AddSlider("ExplodePowerSlider", {
 }):OnChanged(function(val)
     ExplodePower = val
 end)
+
 ExplodeBox:AddSlider("ExplodePressureSlider", {
-    Text = "爆炸压力",
+    Text = "Pressure",
     Default = ExplodePressure,
     Min = 1,
     Max = 1500,
@@ -819,19 +947,22 @@ ExplodeBox:AddSlider("ExplodePressureSlider", {
 }):OnChanged(function(val)
     ExplodePressure = val
 end)
+
 local function ExplodeAt(pos)
     for i = 1, ExplosionsCount do
         ReplicatedStorage.LocalEvents.ExplodeEvent:Fire(pos, ExplodeRadius, ExplodePower, ExplodePressure)
     end
 end
+
 local MouseDown = false
+
 UserInputService.InputBegan:Connect(function(input)
     if Enabled and input.UserInputType == Enum.UserInputType.MouseButton1 then
         MouseDown = true
-        if ClickMode == "点击" then
+        if ClickMode == "CLICK" then
             local pos = Mouse.Hit.Position
             ExplodeAt(pos)
-        elseif ClickMode == "循环" then
+        elseif ClickMode == "LOOP" then
             spawn(function()
                 while MouseDown and Enabled do
                     local pos = Mouse.Hit.Position
@@ -842,18 +973,23 @@ UserInputService.InputBegan:Connect(function(input)
         end
     end
 end)
+
 UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         MouseDown = false
     end
 end)
+
 local VisualsEx = Tabs["Visuals"]:AddLeftGroupbox("ESP")
+
 if not _G.ExunysESPLoaded then
     loadstring(game:HttpGet("https://raw.githubusercontent.com/Exunys/Exunys-ESP/main/src/ESP.lua"))()
     _G.ExunysESPLoaded = true
 end
+
 local ESP = getgenv().ExunysDeveloperESP
 ESP.Settings.Enabled = false
+
 local queuedToggles = {
     NameTag = false,
     Box = false,
@@ -863,6 +999,7 @@ local queuedToggles = {
     HealthBar = false,
     Crosshair = false
 }
+
 local function applyQueuedToggles()
     ESP.Properties.ESP.DisplayName = queuedToggles.NameTag
     ESP.Properties.Box.Enabled = queuedToggles.Box
@@ -870,14 +1007,16 @@ local function applyQueuedToggles()
     ESP.Properties.HeadDot.Enabled = queuedToggles.HeadDot
     ESP.Properties.HealthBar.Enabled = queuedToggles.HealthBar
 end
+
 local function setESP(name, value)
     queuedToggles[name] = value
     if ESP.Settings.Enabled then
         applyQueuedToggles()
     end
 end
+
 VisualsEx:AddToggle("espEnabled", {
-    Text = "启用ESP",
+    Text = "Enable ESP",
     Default = false,
     Callback = function(value)
         if value and not ESP.Loaded then
@@ -887,30 +1026,38 @@ VisualsEx:AddToggle("espEnabled", {
         applyQueuedToggles()
     end
 })
+
 VisualsEx:AddToggle("teamCheck", {
-    Text = "队伍检查",
+    Text = "Team Check",
     Default = false,
     Callback = function(value)
         ESP.Settings.TeamCheck = value
     end
 })
+
 local espElements = {"Box", "Tracer", "HeadDot", "HealthBar"}
 for _, name in pairs(espElements) do
     VisualsEx:AddToggle(name:lower().."Enabled", {
-        Text = name == "Box" and "方框" or name == "Tracer" and "追踪线" or name == "HeadDot" and "头部圆点" or "血条",
+        Text = name,
         Default = false,
         Callback = function(value)
             setESP(name, value)
         end
     })
 end
+
+
+
+
 local uis = game:GetService("UserInputService")
+
 while true do
     task.wait()
     if isFunctionalityEnabled then
         if localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local humanoid = localPlayer.Character:FindFirstChild("Humanoid")
             local hrp = localPlayer.Character.HumanoidRootPart
+
             if isSpeedActive and humanoid and humanoid.MoveDirection.Magnitude > 0 then
                 local moveDirection = humanoid.MoveDirection.Unit
                 local currentVelocity = hrp.Velocity
@@ -938,6 +1085,7 @@ while true do
                 if input:IsKeyDown(Enum.KeyCode.D) then
                     flyDirection += camera.CFrame.RightVector
                 end
+
                 if flyDirection.Magnitude > 0 then
                     flyDirection = flyDirection.Unit
                 end
@@ -953,254 +1101,7 @@ while true do
         end
     end
 end
+
+
+
 SaveManager:LoadAutoloadConfig()
--- 视觉效果标签页（Visuals）补充：ESP 颜色配置
-VisualsEx:AddLabel("ESP 颜色设置")
-VisualsEx:AddColorPicker("EnemyColor", {
-    Text = "敌人颜色",
-    Default = Color3.new(1, 0, 0), -- 红色
-    Tooltip = "设置敌方目标的 ESP 颜色",
-    Callback = function(color)
-        if ESP and ESP.Properties then
-            ESP.Properties.Box.Color = color
-            ESP.Properties.Tracer.Color = color
-            ESP.Properties.HeadDot.Color = color
-            ESP.Properties.HealthBar.Color = color
-        end
-    end
-})
-VisualsEx:AddColorPicker("AllyColor", {
-    Text = "队友颜色",
-    Default = Color3.new(0, 1, 0), -- 绿色
-    Tooltip = "设置友方目标的 ESP 颜色（需开启队伍检查）",
-    Callback = function(color)
-        if ESP and ESP.Properties then
-            ESP.Properties.Box.AllyColor = color
-            ESP.Properties.Tracer.AllyColor = color
-            ESP.Properties.HeadDot.AllyColor = color
-            ESP.Properties.HealthBar.AllyColor = color
-        end
-    end
-})
-
--- 视觉效果标签页（Visuals）新增：视野设置
-local VisionBox = Tabs["Visuals"]:AddRightGroupbox("视野设置")
-VisionBox:AddToggle("NoFogEnabled", {
-    Text = "去除迷雾",
-    Default = false,
-    Tooltip = "清除游戏中的迷雾效果，扩大视野范围",
-    Callback = function(value)
-        local Lighting = game:GetService("Lighting")
-        if value then
-            Lighting.FogEnd = 100000 -- 极大延长迷雾结束距离
-            Lighting.FogStart = 10000 -- 推迟迷雾开始位置
-        else
-            Lighting.FogEnd = 1000 -- 恢复默认迷雾距离（可根据游戏调整）
-            Lighting.FogStart = 500
-        end
-    end
-})
-VisionBox:AddToggle("NightVisionEnabled", {
-    Text = "夜视模式",
-    Default = false,
-    Tooltip = "开启夜视效果，适应黑暗环境",
-    Callback = function(value)
-        local Lighting = game:GetService("Lighting")
-        if value then
-            Lighting.Brightness = 2 -- 提高亮度
-            Lighting.Ambient = Color3.new(0.3, 0.3, 0.3) -- 调整环境光
-            Lighting.ColorShift_Bottom = Color3.new(0, 0.2, 0) -- 底部绿光夜视效果
-            Lighting.ColorShift_Top = Color3.new(0, 0.2, 0) -- 顶部绿光夜视效果
-        else
-            Lighting.Brightness = 1 -- 恢复默认亮度
-            Lighting.Ambient = Color3.new(0, 0, 0) -- 恢复默认环境光
-            Lighting.ColorShift_Bottom = Color3.new(0, 0, 0) -- 取消颜色偏移
-            Lighting.ColorShift_Top = Color3.new(0, 0, 0)
-        end
-    end
-})
-VisionBox:AddSlider("FOVAdjust", {
-    Text = "视野范围（FOV）",
-    Default = 70,
-    Min = 50,
-    Max = 120,
-    Rounding = 1,
-    Tooltip = "调整相机视野范围，数值越大视野越广",
-    Callback = function(value)
-        Camera.FieldOfView = value
-    end
-})
-
--- 漏洞利用标签页（Exploits）补充：自动拾取功能
-local LootBox = Tabs["Exploits"]:AddLeftGroupbox("自动拾取")
-local AutoLootEnabled = false
-local LootRange = 50 -- 拾取范围
-LootBox:AddToggle("AutoLootToggle", {
-    Text = "启用自动拾取",
-    Default = false,
-    Tooltip = "自动拾取范围内的道具/金币",
-    Callback = function(value)
-        AutoLootEnabled = value
-    end
-})
-LootBox:AddSlider("LootRangeSlider", {
-    Text = "拾取范围",
-    Default = 50,
-    Min = 10,
-    Max = 200,
-    Rounding = 1,
-    Tooltip = "设置自动拾取的有效范围",
-    Callback = function(value)
-        LootRange = value
-    end
-})
--- 自动拾取逻辑
-RunService.Heartbeat:Connect(function()
-    if not AutoLootEnabled or not localPlayer.Character or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        return
-    end
-    local hrpPos = localPlayer.Character.HumanoidRootPart.Position
-    -- 假设道具标签为"Pickable"，可根据游戏实际标签调整
-    for _, item in pairs(workspace:GetChildren()) do
-        if item:IsA("Part") and item:FindFirstChild("Pickable") and item.Pickable.Value then
-            local itemPos = item.Position
-            local distance = (hrpPos - itemPos).Magnitude
-            if distance <= LootRange then
-                -- 触发拾取逻辑（假设拾取远程事件为PickItemEvent）
-                if ReplicatedStorage:FindFirstChild("RemoteEvents") and ReplicatedStorage.RemoteEvents:FindFirstChild("PickItemEvent") then
-                    ReplicatedStorage.RemoteEvents.PickItemEvent:FireServer(item)
-                end
-            end
-        end
-    end
-end)
-
--- 漏洞利用标签页（Exploits）补充：无敌模式
-local GodModeBox = Tabs["Exploits"]:AddRightGroupbox("无敌模式")
-local GodModeEnabled = false
-GodModeBox:AddToggle("GodModeToggle", {
-    Text = "启用无敌",
-    Default = false,
-    Tooltip = "免疫伤害，保持生命值满状态",
-    Callback = function(value)
-        GodModeEnabled = value
-        if value and localPlayer.Character and localPlayer.Character:FindFirstChild("Humanoid") then
-            localPlayer.Character.Humanoid.Health = localPlayer.Character.Humanoid.MaxHealth
-        end
-    end
-})
--- 无敌逻辑维护
-RunService.Heartbeat:Connect(function()
-    if GodModeEnabled and localPlayer.Character and localPlayer.Character:FindFirstChild("Humanoid") then
-        local humanoid = localPlayer.Character.Humanoid
-        if humanoid.Health < humanoid.MaxHealth then
-            humanoid.Health = humanoid.MaxHealth
-        end
-        -- 屏蔽伤害事件（假设伤害事件为DamageEvent）
-        if ReplicatedStorage:FindFirstChild("RemoteEvents") and ReplicatedStorage.RemoteEvents:FindFirstChild("DamageEvent") then
-            local DamageEvent = ReplicatedStorage.RemoteEvents.DamageEvent
-            if not DamageEvent:IsConnected("GodModeBlock") then
-                DamageEvent.OnClientEvent:Connect(function(damage)
-                    if GodModeEnabled then
-                        -- 忽略伤害
-                        return
-                    end
-                end)
-            end
-        end
-    end
-end)
-
--- 主要功能标签页（Main）补充：快速回血
-local HealBox = Tabs.Main:AddRightGroupbox("快速回血")
-HealBox:AddButton("立即回血", function()
-    if localPlayer.Character and localPlayer.Character:FindFirstChild("Humanoid") then
-        local humanoid = localPlayer.Character.Humanoid
-        humanoid.Health = humanoid.MaxHealth
-        print("已恢复至满血状态")
-    else
-        print("角色未加载，无法回血")
-    end
-end)
-HealBox:AddToggle("AutoHealEnabled", {
-    Text = "自动回血",
-    Default = false,
-    Tooltip = "生命值低于阈值时自动恢复",
-    Callback = function(value)
-        AutoHealEnabled = value
-    end
-})
-HealBox:AddSlider("HealThreshold", {
-    Text = "回血阈值（%）",
-    Default = 30,
-    Min = 10,
-    Max = 90,
-    Rounding = 0,
-    Tooltip = "生命值低于此百分比时触发自动回血",
-    Callback = function(value)
-        HealThreshold = value
-    end
-})
--- 自动回血逻辑
-local AutoHealEnabled = false
-local HealThreshold = 30
-RunService.Heartbeat:Connect(function()
-    if not AutoHealEnabled or not localPlayer.Character or not localPlayer.Character:FindFirstChild("Humanoid") then
-        return
-    end
-    local humanoid = localPlayer.Character.Humanoid
-    local healthPercent = (humanoid.Health / humanoid.MaxHealth) * 100
-    if healthPercent <= HealThreshold then
-        humanoid.Health = humanoid.MaxHealth
-    end
-end)
-
--- UI 设置标签页（UI Settings）补充：透明度调整
-local UISettingsBox = Tabs["UI Settings"]:AddRightGroupbox("界面设置")
-UISettingsBox:AddSlider("UIOpacity", {
-    Text = "UI 透明度",
-    Default = 1,
-    Min = 0.5,
-    Max = 1,
-    Rounding = 2,
-    Tooltip = "调整 UI 界面的透明度，数值越低越透明",
-    Callback = function(value)
-        Library.MainFrame.BackgroundTransparency = 1 - value
-        for _, tab in pairs(Tabs) do
-            tab.Frame.BackgroundTransparency = 1 - value
-        end
-    end
-})
-UISettingsBox:AddToggle("WatermarkEnabled", {
-    Text = "显示水印",
-    Default = true,
-    Tooltip = "开启或关闭屏幕角落的 FPS 和延迟水印",
-    Callback = function(value)
-        Library:SetWatermarkVisibility(value)
-    end
-})
-
--- 全局快捷键补充：快速切换 ESP
-UIS.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    -- 按F5快速切换ESP
-    if input.KeyCode == Enum.KeyCode.F5 then
-        local currentESPState = ESP.Settings.Enabled
-        ESP.Settings.Enabled = not currentESPState
-        applyQueuedToggles()
-        print("ESP已" .. (currentESPState and "关闭" or "开启"))
-    end
-    -- 按F6快速切换无敌模式
-    if input.KeyCode == Enum.KeyCode.F6 then
-        GodModeEnabled = not GodModeEnabled
-        if GodModeEnabled and localPlayer.Character and localPlayer.Character:FindFirstChild("Humanoid") then
-            localPlayer.Character.Humanoid.Health = localPlayer.Character.Humanoid.MaxHealth
-            print("无敌模式已开启")
-        else
-            print("无敌模式已关闭")
-        end
-    end
-end)
-
--- 脚本加载完成提示
-print("RTS 辅助脚本加载完成！按End键打开/关闭菜单")
