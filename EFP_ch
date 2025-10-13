@@ -1,0 +1,1107 @@
+local UIS = game:GetService("UserInputService")
+if UIS.TouchEnabled and not UIS.MouseEnabled and not UIS.KeyboardEnabled then
+	getgenv().bypass_adonis = true
+	loadstring(game:HttpGet('https://raw.githubusercontent.com/FakeAngles/RobloxSolutions/refs/heads/main/RTS_TEST_MOBILE.lua'))() return
+end
+
+if not game:IsLoaded() then 
+	game.Loaded:Wait()
+end
+
+if not syn or not protectgui then
+	getgenv().protectgui = function() end
+end
+
+if bypass_adonis then
+	task.spawn(function()
+		local g = getinfo or debug.getinfo
+		local d = false
+		local h = {}
+
+		local x, y
+
+		setthreadidentity(2)
+
+		for i, v in getgc(true) do
+			if typeof(v) == "table" then
+				local a = rawget(v, "Detected")
+				local b = rawget(v, "Kill")
+
+				if typeof(a) == "function" and not x then
+					x = a
+					local o; o = hookfunction(x, function(c, f, n)
+						if c ~= "_" then
+							if d then
+								warn(`Adonis AntiCheat flagged\nMethod: {c}\nInfo: {f}`)
+							end
+						end
+
+						return true
+					end)
+					table.insert(h, x)
+				end
+
+				if rawget(v, "Variables") and rawget(v, "Process") and typeof(b) == "function" and not y then
+					y = b
+					local o; o = hookfunction(y, function(f)
+						if d then
+							warn(`Adonis AntiCheat tried to kill (fallback): {f}`)
+						end
+					end)
+					table.insert(h, y)
+				end
+			end
+		end
+
+		local o; o = hookfunction(getrenv().debug.info, newcclosure(function(...)
+			local a, f = ...
+
+			if x and a == x then
+				if d then
+					warn(`zins | adonis bypassed`)
+				end
+
+				return coroutine.yield(coroutine.running())
+			end
+
+			return o(...)
+		end))
+
+		setthreadidentity(7)
+	end)
+end
+
+local function getPositionOnScreen(Vector)
+	local Vec3, OnScreen = WorldToScreen(Camera, Vector)
+	return Vector2.new(Vec3.X, Vec3.Y), OnScreen
+end
+
+local function ValidateArguments(Args, RayMethod)
+	local Matches = 0
+	if #Args < RayMethod.ArgCountRequired then
+		return false
+	end
+	for Pos, Argument in next, Args do
+		if typeof(Argument) == RayMethod.Args[Pos] then
+			Matches = Matches + 1
+		end
+	end
+	return Matches >= RayMethod.ArgCountRequired
+end
+
+local function getDirection(Origin, Position)
+	return (Position - Origin).Unit * 1000
+end
+
+local function getMousePosition()
+	return GetMouseLocation(UserInputService)
+end
+
+local function IsPlayerVisible(Player)
+	local PlayerCharacter = Player.Character
+	local LocalPlayerCharacter = LocalPlayer.Character
+
+	if not (PlayerCharacter or LocalPlayerCharacter) then return end 
+
+	local PlayerRoot = FindFirstChild(PlayerCharacter, Options.TargetPart.Value) or FindFirstChild(PlayerCharacter, "HumanoidRootPart")
+
+	if not PlayerRoot then return end 
+
+	local CastPoints, IgnoreList = {PlayerRoot.Position, LocalPlayerCharacter, PlayerCharacter}, {LocalPlayerCharacter, PlayerCharacter}
+	local ObscuringObjects = #GetPartsObscuringTarget(Camera, CastPoints, IgnoreList)
+
+	return ((ObscuringObjects == 0 and true) or (ObscuringObjects > 0 and false))
+end
+
+local function getClosestPlayer()
+	if not Options.TargetPart.Value then return end
+	local Closest
+	local DistanceToMouse
+	local ignoredPlayers = Options.PlayerDropdown.Value 
+
+	for _, Player in next, GetPlayers(Players) do
+		if Player == LocalPlayer then continue end
+		if ignoredPlayers and ignoredPlayers[Player.Name] then continue end
+		if Toggles.TeamCheck.Value and Player.Team == LocalPlayer.Team then continue end
+		local Character = Player.Character
+		if not Character then continue end
+		local HumanoidRootPart = FindFirstChild(Character, "HumanoidRootPart")
+		local Humanoid = FindFirstChild(Character, "Humanoid")
+		if not HumanoidRootPart or not Humanoid or Humanoid and Humanoid.Health <= 0 then continue end
+		local ScreenPosition, OnScreen = getPositionOnScreen(HumanoidRootPart.Position)
+		if not OnScreen then continue end
+		local Distance = (getMousePosition() - ScreenPosition).Magnitude
+		if Distance <= (DistanceToMouse or Options.Radius.Value or 2000) then
+			Closest = ((Options.TargetPart.Value == "Random" and Character[ValidTargetParts[math.random(1, #ValidTargetParts)]]) or Character[Options.TargetPart.Value])
+			DistanceToMouse = Distance
+		end
+	end
+	return Closest
+end
+
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local Mouse = LocalPlayer:GetMouse()
+
+local isLockedOn = false
+local targetPlayer = nil
+local lockEnabled = false
+local smoothingFactor = 0.1
+local predictionFactor = 0.0
+local bodyPartSelected = "Head"
+local aimLockEnabled = false 
+
+
+local function getBodyPart(character, part)
+	return character:FindFirstChild(part) and part or "Head"
+end
+
+local function getNearestPlayerToMouse()
+	if not aimLockEnabled then return nil end 
+	local nearestPlayer = nil
+	local shortestDistance = math.huge
+	local mousePosition = Camera:ViewportPointToRay(Mouse.X, Mouse.Y).Origin
+
+	for _, player in pairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(bodyPartSelected) then
+			local part = player.Character[bodyPartSelected]
+			local screenPosition, onScreen = Camera:WorldToViewportPoint(part.Position)
+			if onScreen then
+				local distance = (Vector2.new(screenPosition.X, screenPosition.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
+				if distance < shortestDistance then
+					nearestPlayer = player
+					shortestDistance = distance
+				end
+			end
+		end
+	end
+	return nearestPlayer
+end
+
+local function toggleLockOnPlayer()
+	if not lockEnabled or not aimLockEnabled then return end
+
+	if isLockedOn then
+		isLockedOn = false
+		targetPlayer = nil
+	else
+		targetPlayer = getNearestPlayerToMouse()
+		if targetPlayer and targetPlayer.Character then
+			local part = getBodyPart(targetPlayer.Character, bodyPartSelected)
+			if targetPlayer.Character:FindFirstChild(part) then
+				isLockedOn = true
+			end
+		end
+	end
+end
+
+
+RunService.RenderStepped:Connect(function()
+	if aimLockEnabled and lockEnabled and isLockedOn and targetPlayer and targetPlayer.Character then
+		local partName = getBodyPart(targetPlayer.Character, bodyPartSelected)
+		local part = targetPlayer.Character:FindFirstChild(partName)
+
+		if part and targetPlayer.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+			local predictedPosition = part.Position + (part.AssemblyLinearVelocity * predictionFactor)
+			local currentCameraPosition = Camera.CFrame.Position
+
+			Camera.CFrame = CFrame.new(currentCameraPosition, predictedPosition) * CFrame.new(0, 0, smoothingFactor)
+		else
+			isLockedOn = false
+			targetPlayer = nil
+		end
+	end
+end)
+
+
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/FakeAngles/PasteWare/refs/heads/main/linoralib.lua"))()
+local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/FakeAngles/PasteWare/refs/heads/main/manage2.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/FakeAngles/PasteWare/refs/heads/main/manager.lua"))()
+
+local Window = Library:CreateWindow({
+	Title = 'rts.solutions(宇宙-翻譯版支持正版)',
+	Center = true,
+	AutoShow = true,
+	TabPadding = 8,
+	MenuFadeTime = 0.2
+})
+
+local Tabs = {
+	Main = Window:AddTab('功能'),
+	['Exploits'] = Window:AddTab('功能二'),
+	['Visuals'] = Window:AddTab('視覺效果'),
+	['UI Settings'] = Window:AddTab('使用者UI設計'),
+}
+
+local aimbox = Tabs.Main:AddLeftGroupbox("瞄準鎖")
+local velbox = Tabs.Main:AddRightGroupbox("行動")
+
+aimbox:AddToggle("aimLock_Enabled", {
+	Text = "啟用/禁用瞄準鎖定",
+	Default = false,
+	Tooltip = "Toggle the AimLock feature on or off.",
+	Callback = function(value)
+		aimLockEnabled = value
+		if not aimLockEnabled then
+			lockEnabled = false
+			isLockedOn = false
+			targetPlayer = nil
+		end
+	end
+})
+
+aimbox:AddToggle("aim_Enabled", {
+	Text = "瞄準鎖定按鍵",
+	Default = false,
+	Tooltip = "Toggle AimLock on or off.",
+	Callback = function(value)
+		lockEnabled = value
+		if not lockEnabled then
+			isLockedOn = false
+			targetPlayer = nil
+		end
+	end,
+}):AddKeyPicker("aim_Enabled_KeyPicker", {
+	Default = "Q", 
+	SyncToggleState = true,
+	Mode = "Toggle","Hold",
+	Text = "AimLock Key",
+	Tooltip = "Key to toggle AimLock",
+	Callback = function()
+		toggleLockOnPlayer()
+	end,
+})
+
+aimbox:AddSlider("Smoothing", {
+	Text = "鏡頭屏滑倒數",
+	Default = 0.1,
+	Min = 0,
+	Max = 1,
+	Rounding = 2,
+	Tooltip = "Adjust camera smoothing factor.",
+	Callback = function(value)
+		smoothingFactor = value
+	end,
+})
+
+
+aimbox:AddSlider("Prediction", {
+	Text = "預測函數",
+	Default = 0.0,
+	Min = 0,
+	Max = 2,
+	Rounding = 2,
+	Tooltip = "Adjust prediction for target movement.",
+	Callback = function(value)
+		predictionFactor = value
+	end,
+})
+
+aimbox:AddDropdown("BodyParts", {
+	Values = {"頭部", "身體中間", "右臂", "左腿", "右腿", "左臂"},
+	Default = "頭部",
+	Multi = false,
+	Text = "瞄準部位",
+	Tooltip = "Select which body part to lock onto.",
+	Callback = function(value)
+		bodyPartSelected = value
+	end,
+})
+
+
+local reverseResolveIntensity = 5
+getgenv().Desync = false
+getgenv().DesyncEnabled = false  
+
+
+game:GetService("RunService").Heartbeat:Connect(function()
+	if getgenv().DesyncEnabled then  
+		if getgenv().Desync then
+			local player = game.Players.LocalPlayer
+			local character = player.Character
+			if not character then return end 
+
+			local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+			if not humanoidRootPart then return end
+
+			local originalVelocity = humanoidRootPart.Velocity
+
+			local randomOffset = Vector3.new(
+				math.random(-1, 1) * reverseResolveIntensity * 1000,
+				math.random(-1, 1) * reverseResolveIntensity * 1000,
+				math.random(-1, 1) * reverseResolveIntensity * 1000
+			)
+
+			humanoidRootPart.Velocity = randomOffset
+			humanoidRootPart.CFrame = humanoidRootPart.CFrame * CFrame.Angles(
+				0,
+				math.random(-1, 1) * reverseResolveIntensity * 0.001,
+				0
+			)
+
+			game:GetService("RunService").RenderStepped:Wait()
+
+			humanoidRootPart.Velocity = originalVelocity
+		end
+	end
+end)
+
+velbox:AddToggle("desyncMasterEnabled", {
+	Text = "Enable Desync",
+	Default = false,
+	Tooltip = "Enable or disable the entire desync system.",
+	Callback = function(value)
+		getgenv().DesyncEnabled = value  
+	end
+})
+
+
+velbox:AddToggle("desyncEnabled", {
+	Text = "Desync keybind",
+	Default = false,
+	Tooltip = "Enable or disable reverse resolve desync.",
+	Callback = function(value)
+		getgenv().Desync = value
+	end
+}):AddKeyPicker("desyncToggleKey", {
+	Default = "V", 
+	SyncToggleState = true,
+	Mode = "Toggle",
+	Text = "Desync Toggle Key",
+	Tooltip = "Toggle to enable/disable velocity desync.",
+	Callback = function(value)
+		getgenv().Desync = value
+	end
+})
+
+
+velbox:AddSlider("ReverseResolveIntensity", {
+	Text = "velocity intensity",
+	Default = 5,
+	Min = 1,
+	Max = 10,
+	Rounding = 0,
+	Tooltip = "Adjust the intensity of the reverse resolve effect.",
+	Callback = function(value)
+		reverseResolveIntensity = value
+	end
+})
+
+
+
+local antiLockEnabled = false
+local resolverIntensity = 1.0
+local resolverMethod = "Recalculate"
+
+
+RunService.RenderStepped:Connect(function()
+	if aimLockEnabled and isLockedOn and targetPlayer and targetPlayer.Character then
+		local partName = getBodyPart(targetPlayer.Character, bodyPartSelected)
+		local part = targetPlayer.Character:FindFirstChild(partName)
+
+		if part and targetPlayer.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+			local predictedPosition = part.Position + (part.AssemblyLinearVelocity * predictionFactor)
+
+			if antiLockEnabled then
+				if resolverMethod == "Recalculate" then
+
+					predictedPosition = predictedPosition + (part.AssemblyLinearVelocity * resolverIntensity)
+				elseif resolverMethod == "Randomize" then
+
+					predictedPosition = predictedPosition + Vector3.new(
+						math.random() * resolverIntensity - (resolverIntensity / 2),
+						math.random() * resolverIntensity - (resolverIntensity / 2),
+						math.random() * resolverIntensity - (resolverIntensity / 2)
+					)
+				elseif resolverMethod == "Invert" then
+
+					predictedPosition = predictedPosition - (part.AssemblyLinearVelocity * resolverIntensity * 2)
+				end
+			end
+
+			local currentCameraPosition = Camera.CFrame.Position
+			Camera.CFrame = CFrame.new(currentCameraPosition, predictedPosition) * CFrame.new(0, 0, smoothingFactor)
+		else
+			isLockedOn = false
+			targetPlayer = nil
+		end
+	end
+end)
+
+aimbox:AddToggle("antiLock_Enabled", {
+	Text = "Enable Anti Lock Resolver",
+	Default = false,
+	Tooltip = "Toggle the Anti Lock Resolver on or off.",
+	Callback = function(value)
+		antiLockEnabled = value
+	end,
+})
+
+aimbox:AddSlider("ResolverIntensity", {
+	Text = "Resolver Intensity",
+	Default = 1.0,
+	Min = 0,
+	Max = 5,
+	Rounding = 2,
+	Tooltip = "Adjust the intensity of the Anti Lock Resolver.",
+	Callback = function(value)
+		resolverIntensity = value
+	end,
+})
+
+aimbox:AddDropdown("ResolverMethods", {
+	Values = {"Recalculate", "Randomize", "Invert"},
+	Default = "Recalculate", 
+	Multi = false,
+	Text = "Resolver Method",
+	Tooltip = "Select the method used by the Anti Lock Resolver.",
+	Callback = function(value)
+		resolverMethod = value
+	end,
+})
+
+Library:SetWatermarkVisibility(true)
+local FrameTimer = tick()
+local FrameCounter = 0;
+local FPS = 60;
+
+local WatermarkConnection = game:GetService('RunService').RenderStepped:Connect(function()
+	FrameCounter += 1;
+
+	if (tick() - FrameTimer) >= 1 then
+		FPS = FrameCounter;
+		FrameTimer = tick();
+		FrameCounter = 0;
+	end;
+
+	Library:SetWatermark(('rts solutions | %s fps | %s ms'):format(
+		math.floor(FPS),
+		math.floor(game:GetService('Stats').Network.ServerStatsItem['Data Ping']:GetValue())
+		));
+end);
+
+Library.KeybindFrame.Visible = true;
+
+Library:OnUnload(function()
+	WatermarkConnection:Disconnect()
+
+	print('Unloaded!')
+	Library.Unloaded = true
+end)
+
+local MenuGroup = Tabs['UI Settings']:AddLeftGroupbox('Menu')
+MenuGroup:AddButton('Unload', function() Library:Unload() end)
+MenuGroup:AddLabel('Menu bind'):AddKeyPicker('MenuKeybind', { Default = 'End', NoUI = true, Text = 'Menu keybind' })
+Library.ToggleKeybind = Options.MenuKeybind
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({ 'MenuKeybind' })
+SaveManager:BuildConfigSection(Tabs['UI Settings'])
+ThemeManager:ApplyToTab(Tabs['UI Settings'])
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local targetStrafe = Tabs.Main:AddLeftGroupbox("Target Strafe")
+
+local strafeEnabled = false
+local teamCheck = false
+local strafeAllowed = true
+local strafeSpeed, strafeRadius = 50, 5
+local strafeMode, targetPlayer = "Horizontal", nil
+local originalCameraMode = nil
+
+local function getClosestPlayer()
+	local closest, shortestDist = nil, math.huge
+	for _, player in pairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+			if not teamCheck or (player.Team ~= LocalPlayer.Team) then
+				local dist = (LocalPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
+				if dist < shortestDist then
+					closest, shortestDist = player, dist
+				end
+			end
+		end
+	end
+	return closest and closest.Character and closest.Character:FindFirstChild("HumanoidRootPart") and closest.Character or nil
+end
+
+local function startTargetStrafe()
+	if not strafeAllowed then return end
+	targetPlayer = getClosestPlayer()
+	if targetPlayer and targetPlayer.Parent then
+		originalCameraMode = LocalPlayer.CameraMode
+		LocalPlayer.CameraMode = Enum.CameraMode.Classic
+		local targetPos = targetPlayer.HumanoidRootPart.Position
+		LocalPlayer.Character:SetPrimaryPartCFrame(CFrame.new(targetPos))
+		Camera.CameraSubject = targetPlayer:FindFirstChild("Humanoid")
+	end
+end
+
+local function strafeAroundTarget()
+	if not (strafeAllowed and strafeEnabled and targetPlayer and targetPlayer:FindFirstChild("HumanoidRootPart")) then return end
+	local targetPos = targetPlayer.HumanoidRootPart.Position
+	local angle = tick() * (strafeSpeed / 10)
+	local offset = strafeMode == "Horizontal"
+		and Vector3.new(math.cos(angle) * strafeRadius, 0, math.sin(angle) * strafeRadius)
+		or Vector3.new(math.cos(angle) * strafeRadius, strafeRadius, math.sin(angle) * strafeRadius)
+	LocalPlayer.Character:SetPrimaryPartCFrame(CFrame.new(targetPos + offset))
+	LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(LocalPlayer.Character.HumanoidRootPart.Position, targetPos)
+end
+
+local function stopTargetStrafe()
+	LocalPlayer.CameraMode = originalCameraMode or Enum.CameraMode.Classic
+	Camera.CameraSubject = LocalPlayer.Character:FindFirstChild("Humanoid")
+	strafeEnabled, targetPlayer = false, nil
+end
+
+targetStrafe:AddToggle("strafeControlToggle", {
+	Text = "Enable/Disable",
+	Default = true,
+	Tooltip = "Enable or disable the ability to use Target Strafe.",
+	Callback = function(value)
+		strafeAllowed = value
+		if not strafeAllowed and strafeEnabled then
+			stopTargetStrafe()
+		end
+	end
+})
+
+targetStrafe:AddToggle("strafeToggle", {
+	Text = "Enable Target Strafe",
+	Default = false,
+	Tooltip = "Enable or disable Target Strafe.",
+	Callback = function(value)
+		if strafeAllowed then
+			strafeEnabled = value
+			if strafeEnabled then startTargetStrafe() else stopTargetStrafe() end
+		end
+	end
+}):AddKeyPicker("strafeToggleKey", {
+	Default = "L",
+	SyncToggleState = true,
+	Mode = "Toggle",
+	Text = "Target Strafe Toggle Key",
+	Tooltip = "Key to toggle Target Strafe",
+	Callback = function(value)
+		if strafeAllowed then
+			strafeEnabled = value
+			if strafeEnabled then startTargetStrafe() else stopTargetStrafe() end
+		end
+	end
+})
+
+targetStrafe:AddToggle("teamCheckToggle", {
+	Text = "Team Check",
+	Default = false,
+	Tooltip = "Only strafe players from the opposing team.",
+	Callback = function(value)
+		teamCheck = value
+	end
+})
+
+targetStrafe:AddDropdown("strafeModeDropdown", {
+	AllowNull = false,
+	Text = "Target Strafe Mode",
+	Default = "Horizontal",
+	Values = {"Horizontal", "UP"},
+	Tooltip = "Select the strafing mode.",
+	Callback = function(value) strafeMode = value end
+})
+
+targetStrafe:AddSlider("strafeRadiusSlider", {
+	Text = "Strafe Radius",
+	Default = 5,
+	Min = 1,
+	Max = 20,
+	Rounding = 1,
+	Tooltip = "Set the radius of movement around the target.",
+	Callback = function(value) strafeRadius = value end
+})
+
+targetStrafe:AddSlider("strafeSpeedSlider", {
+	Text = "Strafe Speed",
+	Default = 50,
+	Min = 10,
+	Max = 200,
+	Rounding = 1,
+	Tooltip = "Set the speed of strafing around the target.",
+	Callback = function(value) strafeSpeed = value end
+})
+
+RunService.RenderStepped:Connect(function()
+	pcall(strafeAroundTarget)
+end)
+
+
+game:GetService("RunService").RenderStepped:Connect(function()
+	if strafeEnabled and strafeAllowed then strafeAroundTarget() end
+end)
+
+local frabox = Tabs.Main:AddRightGroupbox("Movement")
+
+local localPlayer = game:GetService("Players").LocalPlayer
+local Cmultiplier = 1  
+local isSpeedActive = false
+local isFlyActive = false
+local isNoClipActive = false
+local isFunctionalityEnabled = true  
+local flySpeed = 1
+local camera = workspace.CurrentCamera
+local humanoid = nil
+
+frabox:AddToggle("functionalityEnabled", {
+	Text = "Enable/Disable movement",
+	Default = true,
+	Tooltip = "Enable or disable.",
+	Callback = function(value)
+		isFunctionalityEnabled = value
+	end
+})
+
+frabox:AddToggle("speedEnabled", {
+	Text = "Speed Toggle",
+	Default = false,
+	Tooltip = "It makes you go fast.",
+	Callback = function(value)
+		isSpeedActive = value
+	end
+}):AddKeyPicker("speedToggleKey", {
+	Default = "C",  
+	SyncToggleState = true,
+	Mode = "Toggle",
+	Text = "Speed Toggle Key",
+	Tooltip = "CFrame keybind.",
+	Callback = function(value)
+		isSpeedActive = value
+	end
+})
+
+frabox:AddSlider("cframespeed", {
+	Text = "CFrame Multiplier",
+	Default = 1,
+	Min = 1,
+	Max = 666,
+	Rounding = 1,
+	Tooltip = "The CFrame speed.",
+	Callback = function(value)
+		Cmultiplier = value
+	end,
+})
+
+frabox:AddToggle("flyEnabled", {
+	Text = "CFly Toggle",
+	Default = false,
+	Tooltip = "Toggle CFrame Fly functionality.",
+	Callback = function(value)
+		isFlyActive = value
+	end
+}):AddKeyPicker("flyToggleKey", {
+	Default = "F",  
+	SyncToggleState = true,
+	Mode = "Toggle",
+	Text = "CFly Toggle Key",
+	Tooltip = "CFrame Fly keybind.",
+	Callback = function(value)
+		isFlyActive = value
+	end
+})
+
+frabox:AddSlider("flySpeed", {
+	Text = "CFly Speed",
+	Default = 1,
+	Min = 1,
+	Max = 666,
+	Rounding = 1,
+	Tooltip = "The CFrame Fly speed.",
+	Callback = function(value)
+		flySpeed = value
+	end,
+})
+
+frabox:AddToggle("noClipEnabled", {
+	Text = "NoClip Toggle",
+	Default = false,
+	Tooltip = "Enable or disable NoClip.",
+	Callback = function(value)
+		isNoClipActive = value
+	end
+}):AddKeyPicker("noClipToggleKey", {
+	Default = "N",
+	SyncToggleState = true,
+	Mode = "Toggle",
+	Text = "NoClip Toggle Key",
+	Tooltip = "Keybind to toggle NoClip.",
+	Callback = function(value)
+		isNoClipActive = value
+	end
+})
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LPlayer = Players.LocalPlayer
+
+local KillAllBox = Tabs['Exploits']:AddLeftGroupbox("KILL ALL")
+
+local enemyList = {}
+local SelectedEnemies = {}
+local LoopKill = false
+local KillMode = "Select"
+local KillType = "KILL"
+
+local function UpdateEnemyList()
+	enemyList = {}
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LPlayer and plr.Team ~= LPlayer.Team then
+			table.insert(enemyList, plr.Name)
+		end
+	end
+	Options.EnemySelect:SetValues(enemyList)
+end
+
+local function KillPlayer(plr)
+	if plr.Character and plr.Character:FindFirstChild("Humanoid") and plr.Character:FindFirstChild("Head") then
+		ReplicatedStorage.RemoteEvents.DamageEvent:FireServer(plr.Character.Humanoid, 41, plr.Character.Head)
+	end
+end
+
+local function ExplodePlayer(plr)
+	if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+		local pos = plr.Character.HumanoidRootPart.Position
+		ReplicatedStorage.LocalEvents.ExplodeEvent:Fire(pos, 99, 800, 700)
+	end
+end
+
+KillAllBox:AddDropdown("EnemySelect", {
+	Values = enemyList,
+	Multi = true,
+	Default = {},
+	Text = "Select Enemies",
+}):OnChanged(function(values)
+	SelectedEnemies = values
+end)
+
+KillAllBox:AddDropdown("KillMode", {
+	Values = {"Select", "ALL"},
+	Default = "Select",
+	Text = "Target Mode",
+}):OnChanged(function(val)
+	KillMode = val
+end)
+
+KillAllBox:AddDropdown("KillType", {
+	Values = {"KILL", "EXPLODE"},
+	Default = "KILL",
+	Text = "Kill Type",
+}):OnChanged(function(val)
+	KillType = val
+end)
+
+KillAllBox:AddToggle("LoopKill", {Text = "LoopKill", Default = false}):OnChanged(function(val)
+	LoopKill = val
+end)
+
+KillAllBox:AddButton("KILL", function()
+	if KillMode == "Select" and next(SelectedEnemies) then
+		for name in pairs(SelectedEnemies) do
+			local plr = Players:FindFirstChild(name)
+			if plr then
+				if KillType == "KILL" then
+					KillPlayer(plr)
+				elseif KillType == "EXPLODE" then
+					ExplodePlayer(plr)
+				end
+			end
+		end
+	elseif KillMode == "ALL" then
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr ~= LPlayer and plr.Team ~= LPlayer.Team then
+				if KillType == "KILL" then
+					KillPlayer(plr)
+				elseif KillType == "EXPLODE" then
+					ExplodePlayer(plr)
+				end
+			end
+		end
+	end
+end)
+
+task.spawn(function()
+	while task.wait(0.3) do
+		if LoopKill then
+			if KillMode == "ALL" then
+				for _, plr in ipairs(Players:GetPlayers()) do
+					if plr ~= LPlayer and plr.Team ~= LPlayer.Team then
+						if KillType == "KILL" then
+							KillPlayer(plr)
+						elseif KillType == "EXPLODE" then
+							ExplodePlayer(plr)
+						end
+					end
+				end
+			elseif KillMode == "Select" and next(SelectedEnemies) then
+				for name in pairs(SelectedEnemies) do
+					local plr = Players:FindFirstChild(name)
+					if plr then
+						if KillType == "KILL" then
+							KillPlayer(plr)
+						elseif KillType == "EXPLODE" then
+							ExplodePlayer(plr)
+						end
+					end
+				end
+			end
+		end
+	end
+end)
+
+Players.PlayerAdded:Connect(UpdateEnemyList)
+Players.PlayerRemoving:Connect(UpdateEnemyList)
+UpdateEnemyList()
+
+
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local ExplodeBox = Tabs['Exploits']:AddRightGroupbox("EXPLODE CLICK")
+
+local Enabled = false
+local ClickMode = "CLICK"
+local ExplodeDelay = 0.3
+local ExplosionsCount = 1
+local ExplodeRadius = 30
+local ExplodePower = 80
+local ExplodePressure = 18
+
+ExplodeBox:AddToggle("ExplodeClickEnable", {
+	Text = "Enable",
+	Default = false,
+}):OnChanged(function(val)
+	Enabled = val
+end)
+
+ExplodeBox:AddDropdown("ExplodeClickMode", {
+	Values = {"CLICK", "LOOP"},
+	Default = "CLICK",
+	Text = "Mode",
+}):OnChanged(function(val)
+	ClickMode = val
+end)
+
+ExplodeBox:AddSlider("ExplodeDelay", {
+	Text = "Explosion Delay",
+	Default = 0.3,
+	Min = 0.05,
+	Max = 1,
+	Rounding = 2,
+	Compact = false,
+}):OnChanged(function(val)
+	ExplodeDelay = val
+end)
+
+ExplodeBox:AddSlider("ExplosionsCountSlider", {
+	Text = "Explosions Count",
+	Default = ExplosionsCount,
+	Min = 1,
+	Max = 50,
+	Rounding = 1,
+}):OnChanged(function(val)
+	ExplosionsCount = val
+end)
+
+ExplodeBox:AddSlider("ExplodeRadiusSlider", {
+	Text = "Radius",
+	Default = ExplodeRadius,
+	Min = 1,
+	Max = 99,
+	Rounding = 1,
+}):OnChanged(function(val)
+	ExplodeRadius = val
+end)
+
+ExplodeBox:AddSlider("ExplodePowerSlider", {
+	Text = "Power",
+	Default = ExplodePower,
+	Min = 1,
+	Max = 1500,
+	Rounding = 1,
+}):OnChanged(function(val)
+	ExplodePower = val
+end)
+
+ExplodeBox:AddSlider("ExplodePressureSlider", {
+	Text = "Pressure",
+	Default = ExplodePressure,
+	Min = 1,
+	Max = 1500,
+	Rounding = 1,
+}):OnChanged(function(val)
+	ExplodePressure = val
+end)
+
+local function ExplodeAt(pos)
+	for i = 1, ExplosionsCount do
+		ReplicatedStorage.LocalEvents.ExplodeEvent:Fire(pos, ExplodeRadius, ExplodePower, ExplodePressure)
+	end
+end
+
+local MouseDown = false
+
+UserInputService.InputBegan:Connect(function(input)
+	if Enabled and input.UserInputType == Enum.UserInputType.MouseButton1 then
+		MouseDown = true
+		if ClickMode == "CLICK" then
+			local pos = Mouse.Hit.Position
+			ExplodeAt(pos)
+		elseif ClickMode == "LOOP" then
+			spawn(function()
+				while MouseDown and Enabled do
+					local pos = Mouse.Hit.Position
+					ExplodeAt(pos)
+					task.wait(ExplodeDelay)
+				end
+			end)
+		end
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		MouseDown = false
+	end
+end)
+
+local VisualsEx = Tabs["Visuals"]:AddLeftGroupbox("ESP")
+
+if not _G.ExunysESPLoaded then
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/Exunys/Exunys-ESP/main/src/ESP.lua"))()
+	_G.ExunysESPLoaded = true
+end
+
+local ESP = getgenv().ExunysDeveloperESP
+ESP.Settings.Enabled = false
+
+local queuedToggles = {
+	NameTag = false,
+	Box = false,
+	Tracer = false,
+	HeadDot = false,
+	Chams = false,
+	HealthBar = false,
+	Crosshair = false
+}
+
+local function applyQueuedToggles()
+	ESP.Properties.ESP.DisplayName = queuedToggles.NameTag
+	ESP.Properties.Box.Enabled = queuedToggles.Box
+	ESP.Properties.Tracer.Enabled = queuedToggles.Tracer
+	ESP.Properties.HeadDot.Enabled = queuedToggles.HeadDot
+	ESP.Properties.HealthBar.Enabled = queuedToggles.HealthBar
+end
+
+local function setESP(name, value)
+	queuedToggles[name] = value
+	if ESP.Settings.Enabled then
+		applyQueuedToggles()
+	end
+end
+
+VisualsEx:AddToggle("espEnabled", {
+	Text = "Enable ESP",
+	Default = false,
+	Callback = function(value)
+		if value and not ESP.Loaded then
+			ESP:Load()
+		end
+		ESP.Settings.Enabled = value
+		applyQueuedToggles()
+	end
+})
+
+VisualsEx:AddToggle("teamCheck", {
+	Text = "Team Check",
+	Default = false,
+	Callback = function(value)
+		ESP.Settings.TeamCheck = value
+	end
+})
+
+local espElements = {"Box", "Tracer", "HeadDot", "HealthBar"}
+for _, name in pairs(espElements) do
+	VisualsEx:AddToggle(name:lower().."Enabled", {
+		Text = name,
+		Default = false,
+		Callback = function(value)
+			setESP(name, value)
+		end
+	})
+end
+
+
+
+
+local uis = game:GetService("UserInputService")
+
+while true do
+	task.wait()
+	if isFunctionalityEnabled then
+		if localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
+			local humanoid = localPlayer.Character:FindFirstChild("Humanoid")
+			local hrp = localPlayer.Character.HumanoidRootPart
+
+			if isSpeedActive and humanoid and humanoid.MoveDirection.Magnitude > 0 then
+				local moveDirection = humanoid.MoveDirection.Unit
+				local currentVelocity = hrp.Velocity
+				hrp.Velocity = Vector3.new(
+					moveDirection.X * Cmultiplier,
+					currentVelocity.Y,
+					moveDirection.Z * Cmultiplier
+				)
+			end
+			if isFlyActive then
+				local currentPos = hrp.Position
+				local lookAtPos = currentPos + camera.CFrame.LookVector * 100
+				hrp.CFrame = CFrame.new(currentPos, lookAtPos)
+				local flyDirection = Vector3.zero
+				local input = game:GetService("UserInputService")
+				if input:IsKeyDown(Enum.KeyCode.W) then
+					flyDirection += camera.CFrame.LookVector
+				end
+				if input:IsKeyDown(Enum.KeyCode.S) then
+					flyDirection -= camera.CFrame.LookVector
+				end
+				if input:IsKeyDown(Enum.KeyCode.A) then
+					flyDirection -= camera.CFrame.RightVector
+				end
+				if input:IsKeyDown(Enum.KeyCode.D) then
+					flyDirection += camera.CFrame.RightVector
+				end
+
+				if flyDirection.Magnitude > 0 then
+					flyDirection = flyDirection.Unit
+				end
+				hrp.Velocity = flyDirection * flySpeed
+			end
+			if isNoClipActive then
+				for _, v in pairs(localPlayer.Character:GetDescendants()) do
+					if v:IsA("BasePart") and v.CanCollide then
+						v.CanCollide = false
+					end
+				end
+			end
+		end
+	end
+end
+
+
+
+SaveManager:LoadAutoloadConfig()
