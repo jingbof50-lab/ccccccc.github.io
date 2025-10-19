@@ -19,9 +19,9 @@ end
 
 -- 顯示作者資訊和提示（新增多物体控制说明）
 local authorMessage = Instance.new("Message")
-authorMessage.Text = "多物体漂浮控制腳本 - 作者: XTTT\n1: 可選中多個物體，點擊已選物體取消選擇\n2: 新增「物體移至玩家」按鈕，可讓所有選中物體移向你\n3: 按了停止翻轉後再按任意移動鍵才能真正停止翻轉\n4: 只能控制未被固定的物體！\n5: 只有能被藍色框架標記的才是「可能」能控制的物體，物體太大可能無法控制\n6: 請勿短時間內連續點擊並長按控制按鍵，否則可能出現顏色故障\n7: 選好物體後可關閉選擇模式\n8: 此腳本為免費腳本，禁止販賣\n更新了控制面板UI大小調整功能，調整按鈕在最下方\n感謝使用"
+authorMessage.Text = "多物体漂浮控制腳本 - 原作者: XTTT\n1:經過6G更改版 可選中多個物體，點擊已選物體取消選擇\n2: 新增「物體移至玩家」按鈕，可讓所有選中物體移向你\n3: 按了停止翻轉後再按任意移動鍵才能真正停止翻轉\n4: 只能控制未被固定的物體！\n5: 只有能被藍色框架標記的才是「可能」能控制的物體，物體太大可能無法控制\n6: 請勿短時間內連續點擊並長按控制按鍵，否則可能出現顏色故障\n7: 選好物體後可關閉選擇模式\n8: 此腳本為免費腳本，禁止販賣\n更新了控制面板UI大小調整功能，調整按鈕在最下方\n感謝使用"
 authorMessage.Parent = Workspace
-delay(5, function()
+delay(1, function()
 	authorMessage:Destroy()
 end)
 
@@ -335,7 +335,7 @@ local function CreateMobileGUI()
 	MakeDraggable(controlPanel)
 
 	local uiScale = Instance.new("UIScale")
-	uiScale.Scale = 1.0
+	uiScale.Scale = 0.5
 	uiScale.Parent = controlPanel
 
 	-- 區域標題樣式（原邏輯不變）
