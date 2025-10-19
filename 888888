@@ -1,0 +1,659 @@
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+
+-- 等待遊戲載入完成
+if not game:IsLoaded() then
+	game.Loaded:Wait()
+end
+
+-- 等待本地玩家載入
+local LocalPlayer = Players.LocalPlayer
+if not LocalPlayer then
+	Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+	LocalPlayer = Players.LocalPlayer
+end
+
+-- 顯示作者資訊和提示（新增多物体控制说明）
+local authorMessage = Instance.new("Message")
+authorMessage.Text = "多物体漂浮控制腳本 - 作者: XTTT\n1: 可選中多個物體，點擊已選物體取消選擇\n2: 新增「物體移至玩家」按鈕，可讓所有選中物體移向你\n3: 按了停止翻轉後再按任意移動鍵才能真正停止翻轉\n4: 只能控制未被固定的物體！\n5: 只有能被藍色框架標記的才是「可能」能控制的物體，物體太大可能無法控制\n6: 請勿短時間內連續點擊並長按控制按鍵，否則可能出現顏色故障\n7: 選好物體後可關閉選擇模式\n8: 此腳本為免費腳本，禁止販賣\n更新了控制面板UI大小調整功能，調整按鈕在最下方\n感謝使用"
+authorMessage.Parent = Workspace
+delay(5, function()
+	authorMessage:Destroy()
+end)
+
+-- 全域變數（修改：單物體→多物體存儲）
+_G.selectedParts = {} -- 存儲多個選中物體
+_G.highlights = {} -- 對應多個物體的高亮效果
+_G.floatSpeed = 10
+_G.moveDirection = Vector3.new(0, 1, 0)
+_G.flipX = 0
+_G.flipY = 0
+_G.flipZ = 0
+_G.rotationSpeed = 1
+
+-- 角色死亡自動重新連接功能（修改：停止所有選中物體）
+local function setupAutoReconnect()
+	LocalPlayer.CharacterAdded:Connect(function(character)
+		character:WaitForChild("Humanoid")
+		setupSimulationRadius()
+		print("角色已重生，漂浮控制腳本已自動重新連接")
+	end)
+	LocalPlayer.CharacterRemoving:Connect(function()
+		if #_G.selectedParts > 0 then
+			pcall(function()
+				StopPart() -- 停止所有物體
+				removeAllHighlights() -- 清除所有高亮
+			end)
+			_G.selectedParts = {}
+		end
+	end)
+end
+
+-- 設定模擬半徑（原邏輯不變）
+local function setupSimulationRadius()
+	local success, err = pcall(function()
+		RunService.Heartbeat:Connect(function()
+			pcall(function()
+				sethiddenproperty(LocalPlayer, "SimulationRadius", math.huge)
+				sethiddenproperty(LocalPlayer, "MaxSimulationRadius", math.huge)
+			end)
+		end)
+	end)
+	if not success then
+		warn("模擬半徑設定失敗: " .. tostring(err))
+	end
+end
+setupSimulationRadius()
+setupAutoReconnect()
+
+-- 建立高亮效果（修改：支援多物體單獨高亮）
+local function createHighlight(part)
+	local highlight = Instance.new("SelectionBox")
+	highlight.Name = "FloatingHighlight"
+	highlight.Adornee = part
+	highlight.Color3 = Color3.fromRGB(0, 0, 255) -- 藍色標記
+	highlight.LineThickness = 0.05
+	highlight.Parent = part
+	return highlight
+end
+
+-- 清除所有高亮（新增：對應多物體）
+local function removeAllHighlights()
+	for _, highlight in pairs(_G.highlights) do
+		if highlight and highlight.Parent then
+			highlight:Destroy()
+		end
+	end
+	_G.highlights = {}
+end
+
+-- 處理零件函數（修改：支援單個/所有物體）
+local function ProcessPart(targetPart)
+	-- 若傳入targetPart則只處理單個，否則處理所有選中物體
+	local partsToProcess = targetPart and {targetPart} or _G.selectedParts
+	for _, part in ipairs(partsToProcess) do
+		if not part or not part.Parent then continue end
+		-- 清除舊的身體力
+		for _, child in ipairs(part:GetChildren()) do
+			if child:IsA("BodyVelocity") or child:IsA("BodyAngularVelocity") or 
+				child:IsA("BodyForce") or child:IsA("BodyGyro") or 
+				child:IsA("BodyPosition") or child:IsA("BodyThrust") then
+				child:Destroy()
+			end
+		end
+		-- 新增移動力
+		local bodyVelocity = Instance.new("BodyVelocity")
+		bodyVelocity.Velocity = _G.moveDirection.Unit * _G.floatSpeed
+		bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+		bodyVelocity.Parent = part
+		-- 新增翻轉力
+		local bodyAngularVelocity = Instance.new("BodyAngularVelocity")
+		bodyAngularVelocity.AngularVelocity = Vector3.new(_G.flipX, _G.flipY, _G.flipZ) * _G.rotationSpeed
+		bodyAngularVelocity.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+		bodyAngularVelocity.Parent = part
+	end
+end
+
+-- 停止零件移動（修改：支援單個/所有物體）
+local function StopPart(targetPart)
+	local partsToStop = targetPart and {targetPart} or _G.selectedParts
+	for _, part in ipairs(partsToStop) do
+		if part and part.Parent then
+			for _, child in ipairs(part:GetChildren()) do
+				if child:IsA("BodyVelocity") or child:IsA("BodyAngularVelocity") then
+					child:Destroy()
+				end
+			end
+		end
+	end
+end
+
+-- 停止零件翻轉（修改：支援單個/所有物體）
+local function StopFlip(targetPart)
+	local partsToStop = targetPart and {targetPart} or _G.selectedParts
+	for _, part in ipairs(partsToStop) do
+		if part and part.Parent then
+			for _, child in ipairs(part:GetChildren()) do
+				if child:IsA("BodyAngularVelocity") then
+					child:Destroy()
+				end
+			end
+		end
+	end
+	_G.flipX = 0
+	_G.flipY = 0
+	_G.flipZ = 0
+end
+
+-- 更新零件移動（修改：處理所有選中物體）
+local function UpdatePartMovement()
+	if #_G.selectedParts == 0 then return end
+	StopPart()
+	ProcessPart()
+end
+
+-- 檢查零件是否可控制（原邏輯不變）
+local function IsPartControllable(part)
+	return part:IsA("Part") and not part.Anchored and not part.Parent:FindFirstChild("Humanoid") and 
+		not part.Parent:FindFirstChild("Head") and part.Parent ~= LocalPlayer.Character
+end
+
+-- 選擇零件函數（修改：單擊切換選中/取消，支援多物體）
+local function SelectPart(part)
+	if not IsPartControllable(part) then return false end
+
+	-- 檢查物體是否已選中
+	local isSelected = false
+	local removeIndex = nil
+	for i, selectedPart in ipairs(_G.selectedParts) do
+		if selectedPart == part then
+			isSelected = true
+			removeIndex = i
+			break
+		end
+	end
+
+	if isSelected then
+		-- 取消選中：移除列表、刪除高亮、停止物體
+		table.remove(_G.selectedParts, removeIndex)
+		if _G.highlights[part] then
+			_G.highlights[part]:Destroy()
+			_G.highlights[part] = nil
+		end
+		StopPart(part)
+	else
+		-- 新增選中：添加列表、創建高亮、處理物體
+		table.insert(_G.selectedParts, part)
+		local highlight = createHighlight(part)
+		_G.highlights[part] = highlight
+		ProcessPart(part)
+	end
+	return true
+end
+
+-- 取消所有選中物體（新增）
+local function DeselectAllParts()
+	if #_G.selectedParts == 0 then return end
+	removeAllHighlights()
+	StopPart()
+	_G.selectedParts = {}
+	print("已取消所有物體選擇")
+end
+
+-- 物體移至玩家（新增核心功能）
+local function MoveToPlayer()
+	-- 檢查玩家角色狀態
+	local character = LocalPlayer.Character
+	if not character then
+		warn("角色未加載，無法移動物體")
+		return
+	end
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	if not rootPart then
+		warn("未找到角色核心部件，無法移動物體")
+		return
+	end
+	-- 檢查是否有選中物體
+	if #_G.selectedParts == 0 then
+		warn("未選中任何物體，無法執行移動")
+		return
+	end
+
+	-- 設定目標位置（玩家前方10單位，避免重疊）
+	local targetPos = rootPart.Position + rootPart.CFrame.LookVector * 10
+	-- 遍歷所有選中物體，設定移動方向
+	for _, part in ipairs(_G.selectedParts) do
+		if not part or not part.Parent then continue end
+		_G.moveDirection = (targetPos - part.Position).Unit -- 朝向玩家方向
+		ProcessPart(part)
+	end
+	print("已指令所有選中物體移向玩家")
+end
+
+-- 射線檢測函數（原邏輯不變）
+local function getTargetPart()
+	local camera = Workspace.CurrentCamera
+	local mousePos = UserInputService:GetMouseLocation()
+	local unitRay = camera:ViewportPointToRay(mousePos.X, mousePos.Y)
+	local ray = Ray.new(unitRay.Origin, unitRay.Direction * 1000)
+	local part, position = Workspace:FindPartOnRay(ray, LocalPlayer.Character)
+	return part
+end
+
+-- 取得基於視角的方向（原邏輯不變）
+local function getCameraRelativeDirection(direction)
+	local camera = Workspace.CurrentCamera
+	if not camera then return direction end
+	local cameraCFrame = camera.CFrame
+	local relativeDirection = Vector3.new(0, 0, 0)
+
+	if direction == Vector3.new(0, 0, 1) then
+		relativeDirection = Vector3.new(cameraCFrame.LookVector.X, 0, cameraCFrame.LookVector.Z).Unit
+	elseif direction == Vector3.new(0, 0, -1) then
+		relativeDirection = Vector3.new(-cameraCFrame.LookVector.X, 0, -cameraCFrame.LookVector.Z).Unit
+	elseif direction == Vector3.new(-1, 0, 0) then
+		relativeDirection = Vector3.new(-cameraCFrame.RightVector.X, 0, -cameraCFrame.RightVector.Z).Unit
+	elseif direction == Vector3.new(1, 0, 0) then
+		relativeDirection = Vector3.new(cameraCFrame.RightVector.X, 0, cameraCFrame.RightVector.Z).Unit
+	else
+		relativeDirection = direction
+	end
+	return relativeDirection
+end
+
+-- 使GUI元素可拖動的函數（原邏輯不變）
+local function MakeDraggable(gui)
+	gui.Active = true
+	gui.Draggable = true
+	local dragHandle = Instance.new("Frame")
+	dragHandle.Name = "DragHandle"
+	dragHandle.Size = UDim2.new(0, 20, 0, 20)
+	dragHandle.Position = UDim2.new(1, -20, 0, 0)
+	dragHandle.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
+	dragHandle.BorderSizePixel = 0
+	dragHandle.Parent = gui
+	local gripIcon = Instance.new("TextLabel")
+	gripIcon.Name = "GripIcon"
+	gripIcon.Size = UDim2.new(1, 0, 1, 0)
+	gripIcon.Position = UDim2.new(0, 0, 0, 0)
+	gripIcon.Text = "≡"
+	gripIcon.TextColor3 = Color3.new(1, 1, 1)
+	gripIcon.BackgroundTransparency = 1
+	gripIcon.TextSize = 14
+	gripIcon.Parent = dragHandle
+	dragHandle.Active = true
+	dragHandle.Draggable = true
+end
+
+-- 建立手機友好的GUI（修改：新增「取消全部」「物體移至玩家」按鈕）
+local function CreateMobileGUI()
+	local screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "MultiObjectFloatingControl"
+	screenGui.ResetOnSpawn = false
+	screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+	-- 右上角按鈕區（原邏輯不變）
+	local btnHeight = 50
+	local btnSpacing = 10
+	local selectModeButton = Instance.new("TextButton")
+	selectModeButton.Name = "SelectModeToggle"
+	selectModeButton.Size = UDim2.new(0, 150, 0, btnHeight)
+	selectModeButton.Position = UDim2.new(1, -160, 0, btnSpacing)
+	selectModeButton.Text = "選擇模式: 關閉"
+	selectModeButton.TextSize = 16
+	selectModeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+	selectModeButton.TextColor3 = Color3.new(1, 1, 1)
+	selectModeButton.Parent = screenGui
+	MakeDraggable(selectModeButton)
+
+	local openPanelButton = Instance.new("TextButton")
+	openPanelButton.Name = "OpenPanel"
+	openPanelButton.Size = UDim2.new(0, 150, 0, btnHeight)
+	openPanelButton.Position = UDim2.new(1, -160, 0, btnHeight + btnSpacing * 2)
+	openPanelButton.Text = "打開控制面板"
+	openPanelButton.TextSize = 16
+	openPanelButton.BackgroundColor3 = Color3.fromRGB(100, 100, 200)
+	openPanelButton.TextColor3 = Color3.new(1, 1, 1)
+	openPanelButton.Visible = true
+	openPanelButton.Parent = screenGui
+	MakeDraggable(openPanelButton)
+
+	-- 控制面板（修改：增加高度容納新按鈕）
+	local controlPanel = Instance.new("Frame")
+	controlPanel.Name = "ControlPanel"
+	controlPanel.Size = UDim2.new(0, 300, 0, 730) -- 高度從680→730
+	controlPanel.Position = UDim2.new(0.5, -150, 0.5, -365) -- 對應高度居中
+	controlPanel.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+	controlPanel.BackgroundTransparency = 0.3
+	controlPanel.BorderSizePixel = 0
+	controlPanel.Visible = false
+	controlPanel.Parent = screenGui
+	MakeDraggable(controlPanel)
+
+	local uiScale = Instance.new("UIScale")
+	uiScale.Scale = 1.0
+	uiScale.Parent = controlPanel
+
+	-- 區域標題樣式（原邏輯不變）
+	local function createSectionLabel(parent, text, yPos)
+		local label = Instance.new("TextLabel")
+		label.Name = text .. "Label"
+		label.Size = UDim2.new(1, 0, 0, 40)
+		label.Position = UDim2.new(0, 0, 0, yPos)
+		label.Text = text
+		label.TextColor3 = Color3.new(1, 1, 1)
+		label.BackgroundTransparency = 1
+		label.TextSize = 20
+		label.Parent = parent
+		return label
+	end
+
+	-- 1. UI縮放區（原邏輯不變）
+	local scaleLabel = createSectionLabel(controlPanel, "UI大小: 1.0", 20)
+	local scaleBtnSize = UDim2.new(0, 60, 0, 60)
+	local scaleUpButton = Instance.new("TextButton")
+	scaleUpButton.Name = "ScaleUp"
+	scaleUpButton.Size = scaleBtnSize
+	scaleUpButton.Position = UDim2.new(0.7, -30, 0, 60)
+	scaleUpButton.Text = "+"
+	scaleUpButton.TextSize = 30
+	scaleUpButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+	scaleUpButton.TextColor3 = Color3.new(1, 1, 1)
+	scaleUpButton.Parent = controlPanel
+	local scaleDownButton = Instance.new("TextButton")
+	scaleDownButton.Name = "ScaleDown"
+	scaleDownButton.Size = scaleBtnSize
+	scaleDownButton.Position = UDim2.new(0.3, -30, 0, 60)
+	scaleDownButton.Text = "-"
+	scaleDownButton.TextSize = 30
+	scaleDownButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+	scaleDownButton.TextColor3 = Color3.new(1, 1, 1)
+	scaleDownButton.Parent = controlPanel
+
+	-- 2. 速度控制區（原邏輯不變）
+	local speedLabel = createSectionLabel(controlPanel, "速度: " .. _G.floatSpeed, 140)
+	local speedUpButton = Instance.new("TextButton")
+	speedUpButton.Name = "SpeedUp"
+	speedUpButton.Size = scaleBtnSize
+	speedUpButton.Position = UDim2.new(0.7, -30, 0, 180)
+	speedUpButton.Text = "+"
+	speedUpButton.TextSize = 30
+	speedUpButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+	speedUpButton.TextColor3 = Color3.new(1, 1, 1)
+	speedUpButton.Parent = controlPanel
+	local speedDownButton = Instance.new("TextButton")
+	speedDownButton.Name = "SpeedDown"
+	speedDownButton.Size = scaleBtnSize
+	speedDownButton.Position = UDim2.new(0.3, -30, 0, 180)
+	speedDownButton.Text = "-"
+	speedDownButton.TextSize = 30
+	speedDownButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+	speedDownButton.TextColor3 = Color3.new(1, 1, 1)
+	speedDownButton.Parent = controlPanel
+
+	-- 3. 核心控制按鈕區（新增「取消全部」「物體移至玩家」按鈕）
+	local ctrlBtnSize = UDim2.new(0, 100, 0, 40)
+	-- 停止移動
+	local stopButton = Instance.new("TextButton")
+	stopButton.Name = "Stop"
+	stopButton.Size = ctrlBtnSize
+	stopButton.Position = UDim2.new(0.5, -50, 0, 260)
+	stopButton.Text = "停止移動"
+	stopButton.TextSize = 16
+	stopButton.BackgroundColor3 = Color3.fromRGB(200, 100, 100)
+	stopButton.TextColor3 = Color3.new(1, 1, 1)
+	stopButton.Parent = controlPanel
+	-- 停止翻轉
+	local stopFlipButton = Instance.new("TextButton")
+	stopFlipButton.Name = "StopFlip"
+	stopFlipButton.Size = ctrlBtnSize
+	stopFlipButton.Position = UDim2.new(0.5, -50, 0, 310)
+	stopFlipButton.Text = "停止翻轉"
+	stopFlipButton.TextSize = 16
+	stopFlipButton.BackgroundColor3 = Color3.fromRGB(200, 100, 100)
+	stopFlipButton.TextColor3 = Color3.new(1, 1, 1)
+	stopFlipButton.Parent = controlPanel
+	-- 取消全部選中（新增）
+	local deselectAllButton = Instance.new("TextButton")
+	deselectAllButton.Name = "DeselectAll"
+	deselectAllButton.Size = ctrlBtnSize
+	deselectAllButton.Position = UDim2.new(0.5, -50, 0, 360)
+	deselectAllButton.Text = "取消全部选中"
+	deselectAllButton.TextSize = 16
+	deselectAllButton.BackgroundColor3 = Color3.fromRGB(200, 100, 100)
+	deselectAllButton.TextColor3 = Color3.new(1, 1, 1)
+	deselectAllButton.Parent = controlPanel
+	-- 物體移至玩家（新增）
+	local moveToPlayerButton = Instance.new("TextButton")
+	moveToPlayerButton.Name = "MoveToPlayer"
+	moveToPlayerButton.Size = ctrlBtnSize
+	moveToPlayerButton.Position = UDim2.new(0.5, -50, 0, 410)
+	moveToPlayerButton.Text = "物体移至玩家"
+	moveToPlayerButton.TextSize = 16
+	moveToPlayerButton.BackgroundColor3 = Color3.fromRGB(100, 200, 100) -- 綠色區分
+	moveToPlayerButton.TextColor3 = Color3.new(1, 1, 1)
+	moveToPlayerButton.Parent = controlPanel
+
+	-- 4. 移動方向區（原邏輯不變）
+	local directionLabel = createSectionLabel(controlPanel, "移動方向 (基於視角)", 470) -- 位置下移
+	local dirBtnSize = UDim2.new(0, 60, 0, 60)
+	local directions = {
+		{name = "向上", dir = Vector3.new(0, 1, 0), pos = UDim2.new(0.5, -30, 0, 510)},
+		{name = "向下", dir = Vector3.new(0, -1, 0), pos = UDim2.new(0.5, -30, 0, 580)},
+		{name = "向前", dir = Vector3.new(0, 0, 1), pos = UDim2.new(0.3, -30, 0, 545)},
+		{name = "向後", dir = Vector3.new(0, 0, -1), pos = UDim2.new(0.7, -30, 0, 545)},
+		{name = "向左", dir = Vector3.new(-1, 0, 0), pos = UDim2.new(0.1, -30, 0, 545)},
+		{name = "向右", dir = Vector3.new(1, 0, 0), pos = UDim2.new(0.9, -30, 0, 545)}
+	}
+	for i, dirInfo in ipairs(directions) do
+		local button = Instance.new("TextButton")
+		button.Name = dirInfo.name
+		button.Size = dirBtnSize
+		button.Position = dirInfo.pos
+		button.Text = dirInfo.name
+		button.TextSize = 14
+		button.BackgroundColor3 = Color3.fromRGB(100, 100, 200)
+		button.TextColor3 = Color3.new(1, 1, 1)
+		button.Parent = controlPanel
+		button.MouseButton1Click:Connect(function()
+			_G.moveDirection = getCameraRelativeDirection(dirInfo.dir)
+			UpdatePartMovement()
+			local originalColor = button.BackgroundColor3
+			button.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
+			delay(0.2, function()
+				button.BackgroundColor3 = originalColor
+			end)
+		end)
+	end
+
+	-- 5. 翻轉控制區（原邏輯不變，位置下移）
+	local flipLabel = createSectionLabel(controlPanel, "翻轉控制", 650)
+	local flipBtnSize = UDim2.new(0, 60, 0, 40)
+	local flipButtons = {
+		{name = "左翻轉", axis = "Y", value = -1, pos = UDim2.new(0.3, -30, 0, 690)},
+		{name = "右翻轉", axis = "Y", value = 1, pos = UDim2.new(0.7, -30, 0, 690)},
+		{name = "上翻轉", axis = "X", value = 1, pos = UDim2.new(0.5, -30, 0, 650)},
+		{name = "下翻轉", axis = "X", value = -1, pos = UDim2.new(0.5, -30, 0, 730)}
+	}
+	for i, flipInfo in ipairs(flipButtons) do
+		local button = Instance.new("TextButton")
+		button.Name = flipInfo.name
+		button.Size = flipBtnSize
+		button.Position = flipInfo.pos
+		button.Text = flipInfo.name
+		button.TextSize = 14
+		button.BackgroundColor3 = Color3.fromRGB(200, 100, 100)
+		button.TextColor3 = Color3.new(1, 1, 1)
+		button.Parent = controlPanel
+		button.MouseButton1Click:Connect(function()
+			if flipInfo.axis == "X" then _G.flipX = flipInfo.value end
+			if flipInfo.axis == "Y" then _G.flipY = flipInfo.value end
+			if flipInfo.axis == "Z" then _G.flipZ = flipInfo.value end
+			UpdatePartMovement()
+			local originalColor = button.BackgroundColor3
+			button.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
+			delay(0.2, function()
+				button.BackgroundColor3 = originalColor
+			end)
+		end)
+	end
+
+	-- 6. 關閉面板按鈕（位置調整）
+	local closeButton = Instance.new("TextButton")
+	closeButton.Name = "ClosePanel"
+	closeButton.Size = ctrlBtnSize
+	closeButton.Position = UDim2.new(0.5, -50, 0, 780) -- 對應新高度
+	closeButton.Text = "關閉面板"
+	closeButton.TextSize = 16
+	closeButton.BackgroundColor3 = Color3.fromRGB(200, 100, 100)
+	closeButton.TextColor3 = Color3.new(1, 1, 1)
+	closeButton.Parent = controlPanel
+
+	-- 選擇模式狀態（原邏輯不變）
+	local selectMode = false
+	local function onMouseClick()
+		if not selectMode then return end
+		local targetPart = getTargetPart()
+		if targetPart then
+			SelectPart(targetPart) -- 調用修改後的多物體選擇函數
+		end
+	end
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then return end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			onMouseClick()
+		end
+	end)
+
+	-- UI縮放按鈕功能（原邏輯不變）
+	scaleUpButton.MouseButton1Click:Connect(function()
+		uiScale.Scale = math.min(uiScale.Scale + 0.1, 1.5)
+		scaleLabel.Text = "UI大小: " .. string.format("%.1f", uiScale.Scale)
+		local originalColor = scaleUpButton.BackgroundColor3
+		scaleUpButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+		delay(0.2, function()
+			scaleUpButton.BackgroundColor3 = originalColor
+		end)
+	end)
+	scaleDownButton.MouseButton1Click:Connect(function()
+		uiScale.Scale = math.max(uiScale.Scale - 0.1, 0.5)
+		scaleLabel.Text = "UI大小: " .. string.format("%.1f", uiScale.Scale)
+		local originalColor = scaleDownButton.BackgroundColor3
+		scaleDownButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+		delay(0.2, function()
+			scaleDownButton.BackgroundColor3 = originalColor
+		end)
+	end)
+
+	-- 速度按鈕功能（原邏輯不變）
+	speedUpButton.MouseButton1Click:Connect(function()
+		_G.floatSpeed = math.clamp(_G.floatSpeed + 5, 1, 100)
+		speedLabel.Text = "速度: " .. _G.floatSpeed
+		UpdatePartMovement()
+		local originalColor = speedUpButton.BackgroundColor3
+		speedUpButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+		delay(0.2, function()
+			speedUpButton.BackgroundColor3 = originalColor
+		end)
+	end)
+	speedDownButton.MouseButton1Click:Connect(function()
+		_G.floatSpeed = math.clamp(_G.floatSpeed - 5, 1, 100)
+		speedLabel.Text = "速度: " .. _G.floatSpeed
+		UpdatePartMovement()
+		local originalColor = speedDownButton.BackgroundColor3
+		speedDownButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+		delay(0.2, function()
+			speedDownButton.BackgroundColor3 = originalColor
+		end)
+	end)
+
+	-- 停止移動按鈕功能（原邏輯不變）
+	stopButton.MouseButton1Click:Connect(function()
+		_G.floatSpeed = 0
+		UpdatePartMovement()
+		speedLabel.Text = "速度: " .. _G.floatSpeed
+		local originalColor = stopButton.BackgroundColor3
+		stopButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+		delay(0.2, function()
+			stopButton.BackgroundColor3 = originalColor
+		end)
+	end)
+
+	-- 停止翻轉按鈕功能（原邏輯不變）
+	stopFlipButton.MouseButton1Click:Connect(function()
+		StopFlip()
+		local originalColor = stopFlipButton.BackgroundColor3
+		stopFlipButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+		delay(0.2, function()
+			stopFlipButton.BackgroundColor3 = originalColor
+		end)
+	end)
+
+	-- 取消全部選中按鈕功能（新增）
+	deselectAllButton.MouseButton1Click:Connect(function()
+		DeselectAllParts()
+		local originalColor = deselectAllButton.BackgroundColor3
+		deselectAllButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+		delay(0.2, function()
+			deselectAllButton.BackgroundColor3 = originalColor
+		end)
+	end)
+
+	-- 物體移至玩家按鈕功能（新增）
+	moveToPlayerButton.MouseButton1Click:Connect(function()
+		MoveToPlayer()
+		local originalColor = moveToPlayerButton.BackgroundColor3
+		moveToPlayerButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+		delay(0.2, function()
+			moveToPlayerButton.BackgroundColor3 = originalColor
+		end)
+	end)
+
+	-- 選擇模式開關功能（原邏輯不變）
+	selectModeButton.MouseButton1Click:Connect(function()
+		selectMode = not selectMode
+		if selectMode then
+			selectModeButton.Text = "選擇模式: 開啟"
+			selectModeButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+			print("選擇模式已開啟（可點擊物體添加/取消選擇）")
+		else
+			selectModeButton.Text = "選擇模式: 關閉"
+			selectModeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+			print("選擇模式已關閉")
+		end
+	end)
+
+	-- 面板開關功能（原邏輯不變）
+	closeButton.MouseButton1Click:Connect(function()
+		controlPanel.Visible = false
+		openPanelButton.Visible = true
+		print("控制面板已關閉")
+	end)
+	openPanelButton.MouseButton1Click:Connect(function()
+		controlPanel.Visible = true
+		openPanelButton.Visible = false
+		print("控制面板已打開")
+	end)
+
+	return screenGui
+end
+
+-- 新增錯誤處理（原邏輯不變）
+local success, err = pcall(function()
+	CreateMobileGUI()
+end)
+if not success then
+	warn("GUI建立失敗: " .. tostring(err))
+	local errorMsg = Instance.new("Message")
+	errorMsg.Text = "漂浮控制GUI初始化失敗: " .. tostring(err)
+	errorMsg.Parent = Workspace
+	delay(5, function()
+		errorMsg:Destroy()
+	end)
+end
+
+print("多物體漂浮控制腳本已載入成功! 支援死亡自動重新連接、多物體選擇、物體移至玩家。")
