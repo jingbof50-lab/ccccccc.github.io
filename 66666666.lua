@@ -3,8 +3,7 @@ local judge = 1
 
 -- 2. 创建函数"frame"
 local function frame()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/jingbof50-lab/roblox_universe_script/main/scripting_framework"))()
-    local judge = 0  -- 此处放入函数要执行的具体逻辑（示例：打印信息）
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/jingbof50-lab/roblox_universe_script/main/scripting_framework"))() -- 此处放入函数要执行的具体逻辑（示例：打印信息）
     print("judge为0，frame函数正在运行")
 end
 
