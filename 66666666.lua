@@ -1,5 +1,5 @@
 -- 1. 定义变量"judge"，默认值为0
-local judge = 0
+local judge = 1
 
 -- 2. 创建函数"frame"
 local function frame()
